@@ -3,9 +3,9 @@ import type { Session } from '@supabase/supabase-js'
 import { modoPrueba, supabase } from './supabase'
 
 // La app tiene una sola usuaria, así que se entra solo con contraseña.
-// Por dentro, Supabase necesita un email: es este, fijo, y no hace falta
-// que exista de verdad (nunca se le mandan mails).
-export const EMAIL_USUARIA = 'loli@algonuestro.com'
+// El email de su cuenta de Supabase viene de una variable de entorno
+// (VITE_EMAIL_USUARIA en Vercel) para no dejarlo escrito en el código.
+const EMAIL_USUARIA = (import.meta.env.VITE_EMAIL_USUARIA as string | undefined)?.trim() ?? ''
 
 interface AuthCtx {
   cargando: boolean
@@ -48,6 +48,7 @@ export function useAuth() {
 /** Entra con la contraseña. Devuelve un mensaje de error o null si salió bien. */
 export async function entrar(contrasena: string): Promise<string | null> {
   if (!supabase) return null
+  if (!EMAIL_USUARIA) return 'Falta cargar la variable VITE_EMAIL_USUARIA en Vercel (ver guía).'
   const { error } = await supabase.auth.signInWithPassword({
     email: EMAIL_USUARIA,
     password: contrasena,
