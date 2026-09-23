@@ -9,7 +9,7 @@ const secciones = [
 ]
 
 export function Layout() {
-  const { email, salir } = useAuth()
+  const { salir } = useAuth()
   return (
     <div className="app">
       {modoPrueba && (
@@ -38,7 +38,6 @@ export function Layout() {
           </nav>
           {!modoPrueba && (
             <div className="usuaria">
-              <span>{email}</span>
               <button
                 onClick={async () => {
                   await salir()

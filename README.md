@@ -7,7 +7,7 @@ App web para calcular el costo real por producto y el precio sugerido de venta d
 ## Stack
 
 - React + Vite + TypeScript
-- Supabase (base de datos, login con magic link, fotos en Storage) con Row Level Security
+- Supabase (base de datos, login solo con contraseña para una única usuaria, fotos en Storage) con Row Level Security
 - Vercel (hosting)
 
 ## Desarrollo

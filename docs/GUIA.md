@@ -25,16 +25,16 @@ Hacé un paso por vez. Si algo no se ve igual a como lo describo, pará y pregun
 4. Abrí el archivo [`supabase/schema.sql`](../supabase/schema.sql) de este proyecto, copiá **todo** el texto y pegalo en el editor.
 5. Tocá **Run**. Tiene que decir *Success. No rows returned*. Listo: ya están creadas las tablas, con la seguridad para que solo vos veas tus datos.
 
-## Paso 2 · Configurar el login (sin contraseña)
+## Paso 2 · Configurar el login (solo contraseña)
 
-La app te deja entrar con un link que te llega por mail. Para que **nadie más** pueda crearse una cuenta:
+La app se abre con una contraseña. Por dentro, Supabase necesita un email: la app usa uno fijo, `loli@algonuestro.com`, que no hace falta que exista (nunca se le mandan mails).
 
 1. En Supabase, entrá a **Authentication → Sign In / Providers**.
    - Verificá que **Email** esté activado.
-   - Desactivá **Allow new users to sign up** y guardá.
+   - Desactivá **Allow new users to sign up** y guardá. Así nadie más puede crearse una cuenta.
 2. Entrá a **Authentication → Users** y tocá **Add user → Create new user**.
-   - Poné tu email.
-   - Poné cualquier contraseña (la app no la usa).
+   - **Email:** `loli@algonuestro.com` (exactamente así).
+   - **Password:** la contraseña con la que vas a entrar a la app. Elegí una que no uses en otro lado, de al menos 8 caracteres.
    - Dejá tildado **Auto Confirm User** y tocá **Create user**.
 
 ## Paso 3 · Copiar los dos datos de conexión
@@ -59,21 +59,25 @@ La app te deja entrar con un link que te llega por mail. Para que **nadie más**
 
 4. Tocá **Deploy** y esperá un minuto. Vercel te da una dirección, algo como `https://algo-nuestro-costos.vercel.app`. Guardala en favoritos.
 
-## Paso 5 · Avisarle a Supabase cuál es la dirección de la app
-
-Así el link del mail te lleva a la app.
-
-1. En Supabase, entrá a **Authentication → URL Configuration**.
-2. En **Site URL** pegá la dirección que te dio Vercel.
-3. En **Redirect URLs** tocá **Add URL** y pegá la misma dirección con `/**` al final (por ejemplo `https://algo-nuestro-costos.vercel.app/**`). Guardá.
-
-## Paso 6 · Entrar
+## Paso 5 · Entrar
 
 1. Abrí la dirección de Vercel.
-2. Escribí tu email y tocá **Mandarme el link**.
-3. Abrí el mail **desde la misma compu** y tocá el link. Entrás directo.
+2. Escribí tu contraseña y tocá **Entrar**.
 
 La primera vez, la app carga sola los 3 productos con sus fichas técnicas, los gastos de muestras y moldes, la cotización de packaging y la lista de datos que faltan.
+
+### Si te olvidás la contraseña
+
+1. En Supabase, entrá a **SQL Editor → New query**.
+2. Pegá esto, cambiando `NUEVA-CONTRASEÑA` por la que quieras (dejá las comillas simples):
+
+   ```sql
+   update auth.users
+   set encrypted_password = extensions.crypt('NUEVA-CONTRASEÑA', extensions.gen_salt('bf'))
+   where email = 'loli@algonuestro.com';
+   ```
+
+3. Tocá **Run**. Listo: ya entrás con la nueva. Tus datos no se tocan.
 
 ---
 

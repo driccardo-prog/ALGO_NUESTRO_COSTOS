@@ -2,9 +2,13 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Session } from '@supabase/supabase-js'
 import { modoPrueba, supabase } from './supabase'
 
+// La app tiene una sola usuaria, así que se entra solo con contraseña.
+// Por dentro, Supabase necesita un email: es este, fijo, y no hace falta
+// que exista de verdad (nunca se le mandan mails).
+export const EMAIL_USUARIA = 'loli@algonuestro.com'
+
 interface AuthCtx {
   cargando: boolean
-  email: string | null
   logueada: boolean
   salir: () => Promise<void>
 }
@@ -27,7 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const valor: AuthCtx = {
     cargando,
-    email: modoPrueba ? 'modo prueba' : (session?.user.email ?? null),
     logueada: modoPrueba || session !== null,
     salir: async () => {
       await supabase?.auth.signOut()
@@ -42,19 +45,16 @@ export function useAuth() {
   return c
 }
 
-/** Manda el link mágico. Solo funciona para emails ya dados de alta en Supabase. */
-export async function enviarLink(email: string): Promise<string | null> {
+/** Entra con la contraseña. Devuelve un mensaje de error o null si salió bien. */
+export async function entrar(contrasena: string): Promise<string | null> {
   if (!supabase) return null
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false, emailRedirectTo: window.location.origin },
+  const { error } = await supabase.auth.signInWithPassword({
+    email: EMAIL_USUARIA,
+    password: contrasena,
   })
   if (!error) return null
-  if (/signups not allowed|not found|otp_disabled/i.test(error.message)) {
-    return 'Ese email no tiene acceso a la app. Revisá que esté bien escrito.'
-  }
-  if (/rate limit|security purposes/i.test(error.message)) {
-    return 'Pediste varios links seguidos. Esperá un minuto y probá de nuevo.'
-  }
-  return `No se pudo mandar el link: ${error.message}`
+  if (/invalid login credentials/i.test(error.message)) return 'La contraseña no es correcta.'
+  if (/rate limit|security purposes|too many/i.test(error.message))
+    return 'Hubo varios intentos seguidos. Esperá un minuto y probá de nuevo.'
+  return `No se pudo entrar: ${error.message}`
 }
