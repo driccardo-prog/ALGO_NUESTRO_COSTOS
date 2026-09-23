@@ -27,13 +27,13 @@ Hacé un paso por vez. Si algo no se ve igual a como lo describo, pará y pregun
 
 ## Paso 2 · Configurar el login (solo contraseña)
 
-La app se abre con una contraseña. Por dentro, Supabase necesita un email: la app usa uno fijo, `loli@algonuestro.com`, que no hace falta que exista (nunca se le mandan mails).
+La app se abre solo con una contraseña. Por dentro, Supabase guarda la cuenta con tu email; la app lo toma de una variable de Vercel (paso 4), así no queda escrito en el código.
 
 1. En Supabase, entrá a **Authentication → Sign In / Providers**.
    - Verificá que **Email** esté activado.
    - Desactivá **Allow new users to sign up** y guardá. Así nadie más puede crearse una cuenta.
 2. Entrá a **Authentication → Users** y tocá **Add user → Create new user**.
-   - **Email:** `loli@algonuestro.com` (exactamente así).
+   - **Email:** tu email.
    - **Password:** la contraseña con la que vas a entrar a la app. Elegí una que no uses en otro lado, de al menos 8 caracteres.
    - Dejá tildado **Auto Confirm User** y tocá **Create user**.
 
@@ -50,12 +50,13 @@ La app se abre con una contraseña. Por dentro, Supabase necesita un email: la a
 
 1. Entrá a <https://vercel.com> y registrate con **Continue with GitHub**.
 2. Tocá **Add New… → Project** y elegí el repositorio **ALGO_NUESTRO_COSTOS** → **Import**.
-3. Antes de publicar, abrí **Environment Variables** y agregá dos:
+3. Antes de publicar, abrí **Environment Variables** y agregá tres:
 
    | Name | Value |
    |---|---|
    | `VITE_SUPABASE_URL` | el *Project URL* del paso 3 |
    | `VITE_SUPABASE_ANON_KEY` | la *anon public key* del paso 3 |
+   | `VITE_EMAIL_USUARIA` | el email con el que creaste tu usuaria en el paso 2 |
 
 4. Tocá **Deploy** y esperá un minuto. Vercel te da una dirección, algo como `https://algo-nuestro-costos.vercel.app`. Guardala en favoritos.
 
@@ -69,12 +70,12 @@ La primera vez, la app carga sola los 3 productos con sus fichas técnicas, los 
 ### Si te olvidás la contraseña
 
 1. En Supabase, entrá a **SQL Editor → New query**.
-2. Pegá esto, cambiando `NUEVA-CONTRASEÑA` por la que quieras (dejá las comillas simples):
+2. Pegá esto, cambiando `NUEVA-CONTRASEÑA` por la que quieras y `TU-EMAIL` por tu email (dejá las comillas simples):
 
    ```sql
    update auth.users
    set encrypted_password = extensions.crypt('NUEVA-CONTRASEÑA', extensions.gen_salt('bf'))
-   where email = 'loli@algonuestro.com';
+   where email = 'TU-EMAIL';
    ```
 
 3. Tocá **Run**. Listo: ya entrás con la nueva. Tus datos no se tocan.
