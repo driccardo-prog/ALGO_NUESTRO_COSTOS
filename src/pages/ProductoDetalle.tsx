@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Confirmar } from '../components/Confirmar'
+import { Costeo } from '../components/Costeo'
 import { FichaTecnica } from '../components/FichaTecnica'
 import { useData } from '../lib/data'
 import { repo } from '../lib/db'
@@ -85,13 +86,7 @@ export function ProductoDetalle() {
           editarAlEntrar={params.get('editar') === '1'}
         />
       ) : (
-        <div className="tarjeta">
-          <h3>Costeo</h3>
-          <p className="suave">
-            Acá vas a ver el costo real por unidad, el costo con gastos de arranque y el precio
-            sugerido de venta. Se activa cuando carguemos tandas y gastos (próximas etapas).
-          </p>
-        </div>
+        <Costeo key={producto.id} producto={producto} />
       )}
 
       {confirmarBorrado && (

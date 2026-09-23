@@ -24,10 +24,11 @@ export function Confirmar({
         <h3>{titulo}</h3>
         {children && <div className="suave">{children}</div>}
         <div className="acciones" style={{ marginTop: 20, justifyContent: 'flex-end' }}>
-          <button className="btn" onClick={onCancelar} autoFocus>
+          <button type="button" className="btn" onClick={onCancelar} autoFocus>
             Cancelar
           </button>
           <button
+            type="button"
             className={`btn ${peligro ? 'btn-peligro' : 'btn-principal'}`}
             onClick={onConfirmar}
           >

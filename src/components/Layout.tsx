@@ -1,11 +1,14 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { modoPrueba } from '../lib/supabase'
 import { Logo } from './Logo'
 
 const secciones = [
   { a: '/', texto: 'Inicio' },
+  { a: '/gastos', texto: 'Gastos' },
+  { a: '/tandas', texto: 'Tandas' },
   { a: '/productos', texto: 'Productos' },
+  { a: '/configuracion', texto: 'Configuración' },
 ]
 
 export function Layout() {
@@ -36,6 +39,9 @@ export function Layout() {
               </NavLink>
             ))}
           </nav>
+          <Link to="/gastos/nuevo" className="btn btn-principal btn-nuevo-gasto">
+            + Nuevo gasto
+          </Link>
           {!modoPrueba && (
             <div className="usuaria">
               <button
