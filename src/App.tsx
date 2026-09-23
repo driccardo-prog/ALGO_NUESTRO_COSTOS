@@ -9,6 +9,7 @@ import { Inicio } from './pages/Inicio'
 import { Login } from './pages/Login'
 import { ProductoDetalle } from './pages/ProductoDetalle'
 import { Productos } from './pages/Productos'
+import { Resultados } from './pages/Resultados'
 import { Tandas } from './pages/Tandas'
 
 // El formulario arranca de cero cada vez que cambia la dirección (nuevo / editar otro).
@@ -26,6 +27,7 @@ function Rutas() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Inicio />} />
+          <Route path="resultados" element={<Resultados />} />
           <Route path="gastos" element={<Gastos />} />
           <Route path="gastos/nuevo" element={<FormularioGasto />} />
           <Route path="gastos/:id" element={<FormularioGasto />} />

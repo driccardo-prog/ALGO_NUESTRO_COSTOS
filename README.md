@@ -36,6 +36,6 @@ Sin `.env`, la app arranca en **modo prueba**: guarda los datos en el `localStor
 - [x] Fase 1: setup, Supabase, login, modelo de datos, productos y fichas técnicas
 - [x] Fase 2: tandas y carga de gastos
 - [x] Fase 3: motor de cálculo de costos y pantalla de costeo
-- [ ] Fase 4: precios, comisiones, calculadora inversa, inversión inicial
+- [x] Fase 4: precios, comisiones, calculadora inversa, inversión inicial y tablero de Resultados
 - [ ] Fase 5: exportación a Excel
 - [ ] Fase 6: deploy y guía de uso
