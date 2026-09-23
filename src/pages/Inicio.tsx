@@ -4,11 +4,13 @@ import { TarjetaProducto } from '../components/TarjetaProducto'
 import { costearProducto, tandaArranque, tandaReferencia } from '../lib/costeo'
 import { useData } from '../lib/data'
 import { pesos } from '../lib/format'
+import { precioFinal } from '../lib/precios'
 import { calcularPendientes } from '../lib/pendientes'
 
 export function Inicio() {
   const datos = useData()
   const { productos, gastos, config, tandas } = datos
+  const margen = config.margen_principal
   const pendientes = calcularPendientes(config, gastos)
   const principales = productos.filter((p) => !p.es_subproducto)
   const subproductos = productos.filter((p) => p.es_subproducto)
@@ -34,7 +36,14 @@ export function Inicio() {
       </div>
 
       <section className="seccion">
-        <h2>Costos por producto</h2>
+        <div className="titulo-pagina" style={{ marginBottom: 16 }}>
+          <h2 style={{ margin: 0 }}>Costos y precios</h2>
+          {tandas.length > 0 && (
+            <Link to="/resultados" className="btn">
+              Ver resultados completos
+            </Link>
+          )}
+        </div>
         {tandas.length === 0 ? (
           <div className="tarjeta">
             <p>
@@ -54,7 +63,7 @@ export function Inicio() {
                   <th>Tanda</th>
                   <th className="num">Costo real por unidad</th>
                   <th className="num">Costo con arranque</th>
-                  <th className="num">Precio sugerido</th>
+                  <th className="num">Precio sugerido ({margen}%)</th>
                 </tr>
               </thead>
               <tbody>
@@ -91,7 +100,21 @@ export function Inicio() {
                         '—'
                       )}
                     </td>
-                    <td className="num suave chico">próxima etapa</td>
+                    <td className="num">
+                      {(() => {
+                        const pr = c ? precioFinal(c.real, margen, config) : null
+                        return pr ? (
+                          <>
+                            <strong className="precio">{pesos(pr.precio)}</strong>
+                            <Info>
+                              {`Costo real ${pesos(c!.real)} con margen del ${margen}% y comisiones incluidas. Te quedan ${pesos(pr.desglose.ganancia)} por unidad.`}
+                            </Info>
+                          </>
+                        ) : (
+                          '—'
+                        )
+                      })()}
+                    </td>
                   </tr>
                 ))}
               </tbody>

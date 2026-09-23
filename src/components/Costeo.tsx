@@ -5,6 +5,7 @@ import { useData } from '../lib/data'
 import { pct, pesos } from '../lib/format'
 import type { Producto } from '../lib/types'
 import { Info } from './Info'
+import { PreciosProducto } from './PreciosProducto'
 
 const TITULOS: Record<TipoLinea, string> = {
   especifico: 'Gastos específicos',
@@ -142,6 +143,8 @@ export function Costeo({ producto }: { producto: Producto }) {
           )}
         </div>
       </div>
+
+      <PreciosProducto c={c} nombre={producto.nombre} />
 
       <div className="tarjeta" style={{ marginTop: 20 }}>
         <h3>Detalle de cada gasto</h3>

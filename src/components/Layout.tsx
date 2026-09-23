@@ -5,6 +5,7 @@ import { Logo } from './Logo'
 
 const secciones = [
   { a: '/', texto: 'Inicio' },
+  { a: '/resultados', texto: 'Resultados' },
   { a: '/gastos', texto: 'Gastos' },
   { a: '/tandas', texto: 'Tandas' },
   { a: '/productos', texto: 'Productos' },
