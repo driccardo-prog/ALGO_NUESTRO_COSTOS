@@ -3,9 +3,19 @@ import type { Session } from '@supabase/supabase-js'
 import { modoPrueba, supabase } from './supabase'
 
 // La app tiene una sola usuaria, así que se entra solo con contraseña.
-// El email de su cuenta de Supabase viene de una variable de entorno
-// (VITE_EMAIL_USUARIA en Vercel) para no dejarlo escrito en el código.
-const EMAIL_USUARIA = (import.meta.env.VITE_EMAIL_USUARIA as string | undefined)?.trim() ?? ''
+// El email de su cuenta se pide una sola vez y queda recordado en el navegador
+// (o se toma de VITE_EMAIL_USUARIA si está configurada en Vercel).
+const CLAVE_EMAIL = 'algo-nuestro:email'
+
+export function emailRecordado(): string {
+  const env = (import.meta.env.VITE_EMAIL_USUARIA as string | undefined)?.trim()
+  if (env) return env
+  try {
+    return localStorage.getItem(CLAVE_EMAIL) ?? ''
+  } catch {
+    return ''
+  }
+}
 
 interface AuthCtx {
   cargando: boolean
@@ -45,16 +55,20 @@ export function useAuth() {
   return c
 }
 
-/** Entra con la contraseña. Devuelve un mensaje de error o null si salió bien. */
-export async function entrar(contrasena: string): Promise<string | null> {
+/** Entra con email y contraseña. Devuelve un mensaje de error o null si salió bien. */
+export async function entrar(email: string, contrasena: string): Promise<string | null> {
   if (!supabase) return null
-  if (!EMAIL_USUARIA) return 'Falta cargar la variable VITE_EMAIL_USUARIA en Vercel (ver guía).'
-  const { error } = await supabase.auth.signInWithPassword({
-    email: EMAIL_USUARIA,
-    password: contrasena,
-  })
-  if (!error) return null
-  if (/invalid login credentials/i.test(error.message)) return 'La contraseña no es correcta.'
+  const { error } = await supabase.auth.signInWithPassword({ email, password: contrasena })
+  if (!error) {
+    try {
+      localStorage.setItem(CLAVE_EMAIL, email)
+    } catch {
+      // si el navegador no deja guardar, la próxima vez vuelve a pedir el email
+    }
+    return null
+  }
+  if (/invalid login credentials/i.test(error.message))
+    return 'La contraseña no es correcta.'
   if (/rate limit|security purposes|too many/i.test(error.message))
     return 'Hubo varios intentos seguidos. Esperá un minuto y probá de nuevo.'
   return `No se pudo entrar: ${error.message}`

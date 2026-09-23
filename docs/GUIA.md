@@ -27,7 +27,7 @@ Hacé un paso por vez. Si algo no se ve igual a como lo describo, pará y pregun
 
 ## Paso 2 · Configurar el login (solo contraseña)
 
-La app se abre solo con una contraseña. Por dentro, Supabase guarda la cuenta con tu email; la app lo toma de una variable de Vercel (paso 4), así no queda escrito en el código.
+La app se abre con una contraseña. La primera vez que entres desde una compu te pide también el email; después lo recuerda y solo te pide la contraseña.
 
 1. En Supabase, entrá a **Authentication → Sign In / Providers**.
    - Verificá que **Email** esté activado.
@@ -50,20 +50,19 @@ La app se abre solo con una contraseña. Por dentro, Supabase guarda la cuenta c
 
 1. Entrá a <https://vercel.com> y registrate con **Continue with GitHub**.
 2. Tocá **Add New… → Project** y elegí el repositorio **ALGO_NUESTRO_COSTOS** → **Import**.
-3. Antes de publicar, abrí **Environment Variables** y agregá tres:
+3. Antes de publicar, abrí **Environment Variables** y agregá dos:
 
    | Name | Value |
    |---|---|
    | `VITE_SUPABASE_URL` | el *Project URL* del paso 3 |
    | `VITE_SUPABASE_ANON_KEY` | la *anon public key* del paso 3 |
-   | `VITE_EMAIL_USUARIA` | el email con el que creaste tu usuaria en el paso 2 |
 
 4. Tocá **Deploy** y esperá un minuto. Vercel te da una dirección, algo como `https://algo-nuestro-costos.vercel.app`. Guardala en favoritos.
 
 ## Paso 5 · Entrar
 
 1. Abrí la dirección de Vercel.
-2. Escribí tu contraseña y tocá **Entrar**.
+2. La primera vez escribí tu email y tu contraseña; las siguientes, solo la contraseña. Tocá **Entrar**.
 
 La primera vez, la app carga sola los 3 productos con sus fichas técnicas, los gastos de muestras y moldes, la cotización de packaging y la lista de datos que faltan.
 
