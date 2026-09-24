@@ -1129,3 +1129,8 @@ textarea:focus {
   padding: 10px 8px;
   font-size: 0.9rem;
 }
+
+.aviso-sin-tanda {
+  margin-bottom: 24px;
+  padding: 14px 18px;
+}

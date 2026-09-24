@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { AvisoSinTanda } from '../components/AvisoSinTanda'
 import { Info } from '../components/Info'
 import { analizar, type Filtros, type Parte, type TipoRecomendacion } from '../lib/analisis'
 import { montoGasto } from '../lib/costeo'
@@ -98,6 +99,8 @@ export function Resultados() {
           </select>
         </label>
       </div>
+
+      <AvisoSinTanda />
 
       {a.filas.length === 0 ? (
         <div className="tarjeta">

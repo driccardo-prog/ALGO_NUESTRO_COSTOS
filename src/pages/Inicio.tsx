@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { AvisoSinTanda } from '../components/AvisoSinTanda'
 import { Info } from '../components/Info'
 import { TarjetaProducto } from '../components/TarjetaProducto'
 import { costearProducto, tandaArranque, tandaReferencia } from '../lib/costeo'
@@ -34,6 +35,8 @@ export function Inicio() {
           </p>
         </div>
       </div>
+
+      <AvisoSinTanda />
 
       <section className="seccion">
         <div className="titulo-pagina" style={{ marginBottom: 16 }}>
