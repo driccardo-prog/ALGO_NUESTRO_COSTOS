@@ -46,6 +46,7 @@ export function configInicial(): ConfigDatos {
     margen_principal: 50,
     redondeo: 1000,
     subproductos_en_generales: true,
+    precio_con_arranque: true,
   }
 }
 

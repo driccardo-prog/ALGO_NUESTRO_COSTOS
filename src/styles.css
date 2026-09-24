@@ -1134,3 +1134,17 @@ textarea:focus {
   margin-bottom: 24px;
   padding: 14px 18px;
 }
+
+.detalle-tanda {
+  margin: 4px 0 12px;
+  border-top: 1px solid var(--crema-oscuro);
+  padding-top: 8px;
+}
+.detalle-tanda summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--bordeaux);
+}
+.resumen-tanda td {
+  font-size: 0.92rem;
+}

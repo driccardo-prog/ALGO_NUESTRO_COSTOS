@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AvisoSinTanda } from '../components/AvisoSinTanda'
 import { Info } from '../components/Info'
+import { ResumenTanda } from '../components/ResumenTanda'
 import { analizar, type Filtros, type Parte, type TipoRecomendacion } from '../lib/analisis'
 import { montoGasto } from '../lib/costeo'
 import { useData } from '../lib/data'
@@ -27,7 +28,7 @@ export function Resultados() {
   const filtros: Filtros = {
     productoId: params.get('producto') || 'todos',
     tandaId: params.get('tanda') || 'ultima',
-    base: params.get('base') === 'arranque' ? 'arranque' : 'real',
+    base: (params.get('base') ?? (config.precio_con_arranque ? 'arranque' : 'real')) === 'arranque' ? 'arranque' : 'real',
     margen: Number(params.get('margen')) || config.margen_principal,
   }
   const cambiar = (clave: string, valor: string) => {
@@ -80,7 +81,7 @@ export function Resultados() {
         </label>
         <label>
           Costo
-          <select value={filtros.base} onChange={(e) => cambiar('base', e.target.value === 'real' ? '' : e.target.value)}>
+          <select value={filtros.base} onChange={(e) => cambiar('base', e.target.value === (config.precio_con_arranque ? 'arranque' : 'real') ? '' : e.target.value)}>
             <option value="real">Costo real</option>
             <option value="arranque">Con muestras y moldes</option>
           </select>
@@ -149,17 +150,37 @@ export function Resultados() {
               titulo="Inversión inicial"
               valor={pesos(a.inversion.total)}
               detalle={
-                a.inversion.unidadesParaRecuperar
-                  ? `se recupera con ${a.inversion.unidadesParaRecuperar} ventas`
-                  : 'muestras y moldes'
+                a.inversion.enPrecio
+                  ? `incluida en el precio de ${a.inversion.enPrecio.tanda}`
+                  : a.inversion.unidadesParaRecuperar
+                    ? `se recupera con ${a.inversion.unidadesParaRecuperar} ventas`
+                    : 'muestras y moldes'
               }
               info={
-                a.inversion.unidadesParaRecuperar
+                a.inversion.enPrecio
+                  ? `Se recupera al vender las ${a.inversion.enPrecio.unidades} carteras de ${a.inversion.enPrecio.tanda}`
+                  : a.inversion.unidadesParaRecuperar
                   ? `${pesos(a.inversion.total)} ÷ ${pesos(a.totales.gananciaPromedio)} de ganancia promedio por cartera`
                   : 'Suma de los gastos de arranque con monto'
               }
             />
           </div>
+
+          {/* ---------- Cuánto sale la tanda ---------- */}
+          <section className="seccion">
+            <h2>¿Cuánto sale la tanda?</h2>
+            <div className="grilla-2" style={{ marginBottom: 0 }}>
+              {[...new Map(a.filas.map((x) => [x.tanda.id, x.tanda])).values()].map((t) => (
+                <div key={t.id} className="tarjeta">
+                  <h3>
+                    {t.nombre}
+                    {unSolo && <span className="suave chico"> · todas las carteras</span>}
+                  </h3>
+                  <ResumenTanda tandaId={t.id} margen={filtros.margen} />
+                </div>
+              ))}
+            </div>
+          </section>
 
           <div className="grilla-2">
             {/* ---------- De cada $100 ---------- */}
@@ -325,6 +346,7 @@ export function Resultados() {
             total={a.inversion.total}
             gastos={a.inversion.gastos}
             gananciaPromedio={a.totales.gananciaPromedio}
+            enPrecio={a.inversion.enPrecio}
             costoPromedio={a.totales.costoPromedio}
           />
         </>
@@ -454,11 +476,13 @@ function Inversion({
   gastos,
   gananciaPromedio,
   costoPromedio,
+  enPrecio,
 }: {
   total: number
   gastos: Gasto[]
   gananciaPromedio: number
   costoPromedio: number
+  enPrecio: { tanda: string; unidades: number } | null
 }) {
   const { config } = useData()
   // Precio de prueba (no se guarda): para ver cuántas ventas hacen falta con otro precio.
@@ -497,27 +521,42 @@ function Inversion({
         </div>
         <div className="tarjeta">
           <h3>¿Cuántas ventas para recuperarla?</h3>
-          <div className="kpi-valor" style={{ margin: '8px 0' }}>
-            {unidades ? `${unidades} carteras` : '—'}
-          </div>
-          <p className="suave chico">
-            {pesos(total)} ÷ {pesos(gananciaUsada)} que te deja cada cartera
-            {precioPrueba ? ` a ${pesos(precioPrueba)}` : ' en promedio, con el precio sugerido'}.
-          </p>
-          <div className="campo" style={{ marginTop: 16 }}>
-            <label htmlFor="inv-precio">Probar con otro precio promedio</label>
-            <div className="input-plata">
-              <span>$</span>
-              <input
-                id="inv-precio"
-                inputMode="decimal"
-                placeholder="Ej: 150.000"
-                value={precioTexto}
-                onChange={(e) => setPrecioTexto(e.target.value)}
-              />
-            </div>
-            <span className="ayuda">Es solo para probar: no se guarda.</span>
-          </div>
+          {enPrecio ? (
+            <>
+              <div className="kpi-valor" style={{ margin: '8px 0' }}>
+                {enPrecio.unidades} carteras
+              </div>
+              <p className="suave chico">
+                Las muestras y los moldes ya están dentro del precio de {enPrecio.tanda}: se
+                recuperan cuando vendas todas las carteras de esa tanda. Si preferís no cobrarlos
+                en el precio, cambialo en Configuración.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="kpi-valor" style={{ margin: '8px 0' }}>
+                {unidades ? `${unidades} carteras` : '—'}
+              </div>
+              <p className="suave chico">
+                {pesos(total)} ÷ {pesos(gananciaUsada)} que te deja cada cartera
+                {precioPrueba ? ` a ${pesos(precioPrueba)}` : ' en promedio, con el precio sugerido'}.
+              </p>
+              <div className="campo" style={{ marginTop: 16 }}>
+                <label htmlFor="inv-precio">Probar con otro precio promedio</label>
+                <div className="input-plata">
+                  <span>$</span>
+                  <input
+                    id="inv-precio"
+                    inputMode="decimal"
+                    placeholder="Ej: 150.000"
+                    value={precioTexto}
+                    onChange={(e) => setPrecioTexto(e.target.value)}
+                  />
+                </div>
+                <span className="ayuda">Es solo para probar: no se guarda.</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </section>

@@ -74,6 +74,8 @@ export interface Analisis {
     gastos: Gasto[]
     pendientes: number
     unidadesParaRecuperar: number | null
+    /** si las muestras y moldes ya están dentro del precio: la tanda que los paga y sus unidades */
+    enPrecio: { tanda: string; unidades: number } | null
   }
   recomendaciones: Recomendacion[]
 }
@@ -169,6 +171,15 @@ export function analizar(d: Datos, f: Filtros): Analisis {
   const inversionTotal = arranques.reduce((a, g) => a + montoGasto(g), 0)
   const gananciaPromedio = unidades > 0 ? ganancia / unidades : 0
   const hayPrecios = filas.some((x) => x.precio)
+  // Con "costo con arranque", el precio de la tanda de lanzamiento ya incluye muestras y moldes.
+  const lanzamiento = filas.filter((x) => x.costeo.absorbeArranque && x.costeo.arranque > 0)
+  const enPrecio =
+    f.base === 'arranque' && hayPrecios && lanzamiento.length > 0
+      ? {
+          tanda: [...new Set(lanzamiento.map((x) => x.tanda.nombre))].join(', '),
+          unidades: lanzamiento.reduce((s, x) => s + x.unidades, 0),
+        }
+      : null
 
   const a: Analisis = {
     filas,
@@ -193,7 +204,10 @@ export function analizar(d: Datos, f: Filtros): Analisis {
       gastos: arranques,
       pendientes: arranques.filter((g) => g.pendiente).length,
       unidadesParaRecuperar:
-        hayPrecios && gananciaPromedio > 0 ? Math.ceil(inversionTotal / gananciaPromedio) : null,
+        !enPrecio && hayPrecios && gananciaPromedio > 0
+          ? Math.ceil(inversionTotal / gananciaPromedio)
+          : null,
+      enPrecio,
     },
     recomendaciones: [],
   }
@@ -328,7 +342,13 @@ function recomendar(d: Datos, f: Filtros, a: Analisis): Recomendacion[] {
   }
 
   // 9. Recuperar la inversión
-  if (a.inversion.total > 0 && a.inversion.unidadesParaRecuperar) {
+  if (a.inversion.total > 0 && a.inversion.enPrecio) {
+    r.push({
+      tipo: 'dato',
+      titulo: `Las muestras y los moldes ya están en el precio de ${a.inversion.enPrecio.tanda}`,
+      texto: `Los ${pesos(a.inversion.total)} que invertiste se recuperan cuando vendas las ${a.inversion.enPrecio.unidades} carteras de esa tanda. En las tandas siguientes el precio sale del costo real y puede bajar.`,
+    })
+  } else if (a.inversion.total > 0 && a.inversion.unidadesParaRecuperar) {
     r.push({
       tipo: 'dato',
       titulo: `Recuperás la inversión inicial vendiendo ${a.inversion.unidadesParaRecuperar} carteras`,
@@ -344,5 +364,63 @@ function recomendar(d: Datos, f: Filtros, a: Analisis): Recomendacion[] {
       texto: 'Sin ese dato, Tiendanube y el monotributo no se suman al costo. Cargalo en Configuración, aunque sea aproximado.',
     })
   }
+  return r
+}
+
+export interface ResumenTanda {
+  tanda: Tanda
+  unidades: number
+  /** gastos específicos y generales de la tanda */
+  produccion: number
+  /** muestras y moldes que absorbe esta tanda */
+  arranque: number
+  /** plata a poner para hacer la tanda */
+  total: number
+  /** parte de los gastos fijos mensuales que se le carga a estas unidades */
+  recurrentes: number
+  costoPromedio: number
+  /** si se vende todo al precio sugerido */
+  venta: number
+  comisiones: number
+  ganancia: number
+  hayPrecios: boolean
+}
+
+/** Cuánto sale una tanda y cuánto deja si se vende toda al precio sugerido. */
+export function resumenTanda(d: Datos, tandaId: Id, margenPct: number): ResumenTanda | null {
+  const tanda = d.tandas.find((t) => t.id === tandaId)
+  if (!tanda) return null
+  const r: ResumenTanda = {
+    tanda,
+    unidades: 0,
+    produccion: 0,
+    arranque: 0,
+    total: 0,
+    recurrentes: 0,
+    costoPromedio: 0,
+    venta: 0,
+    comisiones: 0,
+    ganancia: 0,
+    hayPrecios: false,
+  }
+  for (const p of d.productos) {
+    const c = costearProducto(d, p.id, tanda.id)
+    if (!c) continue
+    const u = c.unidades
+    r.unidades += u
+    r.produccion += (c.especifico + c.general) * u
+    r.arranque += c.arranque * u
+    r.recurrentes += c.recurrente * u
+    const costo = d.config.precio_con_arranque ? c.conArranque : c.real
+    const precio = precioFinal(costo, margenPct, d.config)
+    if (precio) {
+      r.hayPrecios = true
+      r.venta += precio.precio * u
+      r.comisiones += precio.desglose.comisiones * u
+    }
+  }
+  r.total = r.produccion + r.arranque
+  r.costoPromedio = r.unidades > 0 ? (r.total + r.recurrentes) / r.unidades : 0
+  r.ganancia = r.venta - r.comisiones - r.total - r.recurrentes
   return r
 }
