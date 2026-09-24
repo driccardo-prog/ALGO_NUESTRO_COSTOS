@@ -229,6 +229,8 @@ describe('indicadores', () => {
     ])
     const c = costearProducto(d, 'gauchita', 't1')!
     expect(c.incluyeEstimados).toBe(true)
+    // los estimados se suman igual que los reales
+    expect(c.real).toBe(2000)
     expect(c.faltan).toEqual(['Trenzador'])
   })
 

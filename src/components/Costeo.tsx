@@ -4,6 +4,7 @@ import { costearProducto, tandaReferencia, unidadesDe, type Linea, type TipoLine
 import { useData } from '../lib/data'
 import { pct, pesos } from '../lib/format'
 import type { Producto } from '../lib/types'
+import { AvisoSinTanda } from './AvisoSinTanda'
 import { Info } from './Info'
 import { PreciosProducto } from './PreciosProducto'
 
@@ -69,6 +70,8 @@ export function Costeo({ producto }: { producto: Producto }) {
           )}
         </div>
       </div>
+
+      <AvisoSinTanda />
 
       {(c.faltan.length > 0 || c.recurrentesPendiente) && (
         <ul className="lista-pendientes" style={{ marginBottom: 20 }}>
