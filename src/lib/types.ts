@@ -108,6 +108,8 @@ export interface ConfigDatos {
   margen_principal: number
   redondeo: 0 | 1000 | 5000
   subproductos_en_generales: boolean
+  // en la tanda que absorbe el arranque, el precio sugerido incluye muestras y moldes
+  precio_con_arranque: boolean
 }
 
 export interface Configuracion {

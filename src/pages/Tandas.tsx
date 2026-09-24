@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Confirmar } from '../components/Confirmar'
+import { ResumenTanda } from '../components/ResumenTanda'
 import { tandasOrdenadas, totalUnidades } from '../lib/costeo'
 import { useData } from '../lib/data'
 import { fecha, hoyISO, leerNumero } from '../lib/format'
@@ -8,7 +9,7 @@ import { ESTADOS_TANDA, TIPOS } from '../lib/gastos'
 import type { EstadoTanda, Tanda } from '../lib/types'
 
 export function Tandas() {
-  const { tandas, productos, gastos } = useData()
+  const { tandas, productos, gastos, config } = useData()
   const [editando, setEditando] = useState<Tanda | 'nueva' | null>(null)
 
   return (
@@ -68,6 +69,10 @@ export function Tandas() {
                 </tbody>
               </table>
               {t.notas && <p className="nota">{t.notas}</p>}
+              <details className="detalle-tanda">
+                <summary>¿Cuánto sale esta tanda?</summary>
+                <ResumenTanda tandaId={t.id} margen={config.margen_principal} />
+              </details>
               <div className="acciones" style={{ justifyContent: 'space-between' }}>
                 <Link to={`/gastos?tanda=${t.id}`} className="chico">
                   {nGastos} gasto{nGastos === 1 ? '' : 's'}
@@ -93,7 +98,7 @@ export function Tandas() {
 
 function FormTanda({ tanda, onCerrar }: { tanda: Tanda | null; onCerrar: () => void }) {
   const { tandas, productos, gastos, crear, editar, borrar } = useData()
-  const [nombre, setNombre] = useState(tanda?.nombre ?? `Tanda ${tandas.length + 1}`)
+  const [nombre, setNombre] = useState(tanda?.nombre ?? (tandas.length === 0 ? 'Lanzamiento' : `Tanda ${tandas.length + 1}`))
   const [fechaT, setFechaT] = useState(tanda?.fecha ?? hoyISO())
   const [estado, setEstado] = useState<EstadoTanda>(tanda?.estado ?? 'planificada')
   const [unidades, setUnidades] = useState<Record<string, string>>(() =>

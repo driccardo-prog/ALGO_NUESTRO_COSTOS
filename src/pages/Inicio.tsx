@@ -105,12 +105,13 @@ export function Inicio() {
                     </td>
                     <td className="num">
                       {(() => {
-                        const pr = c ? precioFinal(c.real, margen, config) : null
+                        const costoPrecio = c ? (config.precio_con_arranque ? c.conArranque : c.real) : 0
+                        const pr = c ? precioFinal(costoPrecio, margen, config) : null
                         return pr ? (
                           <>
                             <strong className="precio">{pesos(pr.precio)}</strong>
                             <Info>
-                              {`Costo real ${pesos(c!.real)} con margen del ${margen}% y comisiones incluidas. Te quedan ${pesos(pr.desglose.ganancia)} por unidad.`}
+                              {`${c!.absorbeArranque && config.precio_con_arranque ? 'Costo con muestras y moldes' : 'Costo real'} ${pesos(costoPrecio)} con margen del ${margen}% y comisiones incluidas. Te quedan ${pesos(pr.desglose.ganancia)} por unidad.`}
                             </Info>
                           </>
                         ) : (

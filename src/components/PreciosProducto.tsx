@@ -15,7 +15,9 @@ export function PreciosProducto({ c, nombre }: { c: CosteoProducto; nombre: stri
   const margenes = [...config.margenes].sort((a, b) => a - b)
   const [precioTexto, setPrecioTexto] = useState('')
   const precioProbado = leerNumero(precioTexto)
-  const [base, setBase] = useState<'real' | 'arranque'>('real')
+  const [base, setBase] = useState<'real' | 'arranque'>(
+    config.precio_con_arranque && c.absorbeArranque ? 'arranque' : 'real',
+  )
   const costo = base === 'arranque' ? c.conArranque : c.real
 
   const principal = precioFinal(costo, config.margen_principal, config)

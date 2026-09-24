@@ -246,3 +246,22 @@ describe('indicadores', () => {
     ])
   })
 })
+
+describe('resumen de la tanda', () => {
+  it('suma producción y arranque, y la ganancia descuenta todo', async () => {
+    const { resumenTanda } = await import('./analisis')
+    const d = datos([
+      gasto({ tipo: 'especifico', monto: 150000, productos: ['gauchita', 'potra', 'criolla'] }),
+      gasto({ tipo: 'general', monto: 30000 }),
+      gasto({ tipo: 'arranque', tanda_id: null, monto: 60000, productos: ['gauchita', 'potra', 'criolla'] }),
+    ])
+    const r = resumenTanda(d, 't1', 50)!
+    expect(r.unidades).toBe(15)
+    expect(r.produccion).toBeCloseTo(180000)
+    expect(r.arranque).toBeCloseTo(60000)
+    expect(r.total).toBeCloseTo(240000)
+    expect(r.costoPromedio).toBeCloseTo(16000)
+    // sin comisiones cargadas, con margen 50% el precio duplica el costo con arranque
+    expect(r.ganancia).toBeGreaterThanOrEqual(r.total * 0.99)
+  })
+})

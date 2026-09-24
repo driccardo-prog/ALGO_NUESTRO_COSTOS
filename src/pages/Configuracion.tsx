@@ -143,10 +143,10 @@ export function Configuracion() {
       </section>
 
       <section className="tarjeta seccion-config">
-        <h2>Qué tanda absorbe los gastos de arranque</h2>
+        <h2>Qué tanda paga las muestras y los moldes</h2>
         <p className="suave">
-          Las muestras y los moldes se reparten entre las unidades de una sola tanda de cada
-          producto. Por defecto, la primera.
+          Los gastos de arranque (muestras, moldes) se reparten entre las unidades de una sola tanda
+          de cada producto, la de lanzamiento. Por defecto, la primera.
         </p>
         {principales.map((p) => {
           const posibles = tandas.filter((t) => unidadesDe(t, p.id) > 0)
@@ -472,6 +472,21 @@ function Precios({ guardar }: { guardar: (c: Partial<ConfigDatos>) => Promise<vo
             ))}
           </select>
         </div>
+        <label className="check check-alto" style={{ marginBottom: 16 }}>
+          <input
+            type="checkbox"
+            checked={config.precio_con_arranque}
+            onChange={(e) => guardar({ precio_con_arranque: e.target.checked })}
+          />
+          <span>
+            Cobrar las muestras y los moldes en el precio de la tanda de lanzamiento
+            <br />
+            <span className="suave chico">
+              Así los recuperás con esas ventas. En las tandas siguientes el precio vuelve a salir del
+              costo real.
+            </span>
+          </span>
+        </label>
         <div className="campo campo-fila">
           <label htmlFor="c-redondeo">Redondear el precio sugerido</label>
           <select
