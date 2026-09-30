@@ -16,14 +16,14 @@ export function ResumenTanda({ tandaId, margen }: { tandaId: string; margen: num
         <tr>
           <td>
             Producción
-            <Info>Gastos específicos y generales de la tanda: taller, cuero, packaging, flete…</Info>
+            <Info>Lo que usan las carteras de esta tanda: cuero, taller, packaging, flete… (lo comprado por mayor cuenta solo por lo que se usa).</Info>
           </td>
           <td className="num">{pesos(r.produccion)}</td>
         </tr>
         <tr>
           <td>
             Muestras y moldes
-            <Info>Gastos de arranque que se cargan en esta tanda (ver Configuración).</Info>
+            <Info>La parte de las muestras y los moldes que pagan las carteras de esta tanda (se recuperan en las primeras carteras de cada modelo, ver Configuración).</Info>
           </td>
           <td className="num">{pesos(r.arranque)}</td>
         </tr>
@@ -51,7 +51,7 @@ export function ResumenTanda({ tandaId, margen }: { tandaId: string; margen: num
                 Si vendés las {r.unidades} al precio sugerido ({margen}%)
                 <Info>
                   {conArranque
-                    ? 'El precio incluye las muestras y los moldes, así que se recuperan con esta tanda.'
+                    ? 'El precio incluye la parte de muestras y moldes que le toca a esta tanda.'
                     : 'El precio no incluye muestras y moldes (se puede cambiar en Configuración).'}
                 </Info>
               </td>

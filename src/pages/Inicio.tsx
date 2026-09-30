@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
-import { AvisoSinTanda } from '../components/AvisoSinTanda'
+import { AvisoGastos } from '../components/AvisoGastos'
 import { Info } from '../components/Info'
 import { TarjetaProducto } from '../components/TarjetaProducto'
-import { costearProducto, tandaArranque, tandaReferencia } from '../lib/costeo'
+import { costearProducto, tandaReferencia } from '../lib/costeo'
 import { useData } from '../lib/data'
 import { pesos } from '../lib/format'
 import { precioFinal } from '../lib/precios'
@@ -19,10 +19,7 @@ export function Inicio() {
   const filas = productos.map((p) => {
     const t = tandaReferencia(datos, p.id)
     const c = t ? costearProducto(datos, p.id, t.id) : null
-    // El costo con arranque se toma de la tanda que absorbe el arranque
-    const ta = tandaArranque(datos, p.id)
-    const ca = ta ? costearProducto(datos, p.id, ta.id) : null
-    return { p, t, c, ta, ca }
+    return { p, t, c }
   })
 
   return (
@@ -36,7 +33,7 @@ export function Inicio() {
         </div>
       </div>
 
-      <AvisoSinTanda />
+      <AvisoGastos />
 
       <section className="seccion">
         <div className="titulo-pagina" style={{ marginBottom: 16 }}>
@@ -64,13 +61,13 @@ export function Inicio() {
                 <tr>
                   <th>Producto</th>
                   <th>Tanda</th>
-                  <th className="num">Costo real por unidad</th>
-                  <th className="num">Costo con arranque</th>
+                  <th className="num">Costo por cartera</th>
+                  <th className="num">Con muestras y moldes</th>
                   <th className="num">Precio sugerido ({margen}%)</th>
                 </tr>
               </thead>
               <tbody>
-                {filas.map(({ p, t, c, ta, ca }) => (
+                {filas.map(({ p, t, c }) => (
                   <tr key={p.id}>
                     <td>
                       <Link to={`/productos/${p.id}`}>{p.nombre}</Link>{' '}
@@ -91,13 +88,10 @@ export function Inicio() {
                       )}
                     </td>
                     <td className="num">
-                      {ca ? (
+                      {c ? (
                         <>
-                          {pesos(ca.conArranque)}
-                          <Info>
-                            {ta && t && ta.id !== t.id ? `En ${ta.nombre}: ` : ''}
-                            {ca.explicaciones.conArranque}
-                          </Info>
+                          {pesos(c.conArranque)}
+                          <Info>{`${c.explicaciones.conArranque}. ${c.explicaciones.arranque}`}</Info>
                         </>
                       ) : (
                         '—'
@@ -111,7 +105,7 @@ export function Inicio() {
                           <>
                             <strong className="precio">{pesos(pr.precio)}</strong>
                             <Info>
-                              {`${c!.absorbeArranque && config.precio_con_arranque ? 'Costo con muestras y moldes' : 'Costo real'} ${pesos(costoPrecio)} con margen del ${margen}% y comisiones incluidas. Te quedan ${pesos(pr.desglose.ganancia)} por unidad.`}
+                              {`${c!.absorbeArranque && config.precio_con_arranque ? 'Costo con muestras y moldes' : 'Costo por cartera'} ${pesos(costoPrecio)} con margen del ${margen}% y comisiones incluidas. Te quedan ${pesos(pr.desglose.ganancia)} por unidad.`}
                             </Info>
                           </>
                         ) : (

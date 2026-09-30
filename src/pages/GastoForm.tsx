@@ -1,13 +1,36 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Confirmar } from '../components/Confirmar'
+import { SelectorMes } from '../components/SelectorMes'
 import { IVA } from '../lib/costeo'
 import { useData } from '../lib/data'
-import { leerNumero, numero, pesos } from '../lib/format'
-import { MODOS, TIPOS, unidadesCubiertas } from '../lib/gastos'
-import type { Gasto, ModoMonto, TipoGasto } from '../lib/types'
+import { leerNumero, mesActual, numero, pesos } from '../lib/format'
+import { TIPOS } from '../lib/gastos'
+import type { Gasto, TipoGasto } from '../lib/types'
 
 const txt = (n: number | null) => (n === null ? '' : numero(n))
+
+type Modo = 'total' | 'por_rendimiento'
+
+/** Las formas viejas de cargar (precio × cantidad, por unidad) se muestran como compra por mayor. */
+function valoresIniciales(g: Gasto | undefined) {
+  if (!g) return { modo: 'total' as Modo, monto: '', rinde: '', uso: '1' }
+  if (g.modo_monto === 'unitario')
+    return {
+      modo: 'por_rendimiento' as Modo,
+      monto: txt(g.precio_unitario !== null && g.cantidad !== null ? g.precio_unitario * g.cantidad : null),
+      rinde: txt(g.cantidad),
+      uso: '1',
+    }
+  if (g.modo_monto === 'por_unidad_tanda')
+    return { modo: 'por_rendimiento' as Modo, monto: txt(g.precio_unitario), rinde: '1', uso: '1' }
+  return {
+    modo: g.modo_monto as Modo,
+    monto: txt(g.monto),
+    rinde: txt(g.rinde),
+    uso: txt(g.uso ?? 1),
+  }
+}
 
 export function GastoForm() {
   const { id } = useParams()
@@ -20,13 +43,14 @@ export function GastoForm() {
   const [tipo, setTipo] = useState<TipoGasto>(existente?.tipo ?? 'especifico')
   const [descripcion, setDescripcion] = useState(existente?.descripcion ?? '')
   const [categoriaId, setCategoriaId] = useState(existente?.categoria_id ?? '')
-  const [fecha, setFecha] = useState(existente?.fecha ?? '')
+  const [fecha, setFecha] = useState(existente ? (existente.fecha ?? '') : mesActual())
   const [estado, setEstado] = useState(existente?.estado ?? 'real')
   const [pendiente, setPendiente] = useState(existente?.pendiente ?? false)
-  const [modo, setModo] = useState<ModoMonto>(existente?.modo_monto ?? 'total')
-  const [monto, setMonto] = useState(txt(existente?.monto ?? null))
-  const [precio, setPrecio] = useState(txt(existente?.precio_unitario ?? null))
-  const [cantidad, setCantidad] = useState(txt(existente?.cantidad ?? null))
+  const [inicial] = useState(() => valoresIniciales(existente))
+  const [modo, setModo] = useState<Modo>(inicial.modo)
+  const [monto, setMonto] = useState(inicial.monto)
+  const [rinde, setRinde] = useState(inicial.rinde)
+  const [uso, setUso] = useState(inicial.uso)
   const [sinIva, setSinIva] = useState(existente?.sin_iva ?? false)
   const [tandaId, setTandaId] = useState(existente?.tanda_id ?? params.get('tanda') ?? '')
   const [elegidos, setElegidos] = useState<string[]>(existente?.productos ?? [])
@@ -56,10 +80,9 @@ export function GastoForm() {
 
   const usaProductos = tipo === 'especifico' || tipo === 'arranque'
   const usaTanda = tipo === 'especifico' || tipo === 'general'
-  const modosPosibles: ModoMonto[] = usaTanda
-    ? ['total', 'unitario', 'por_unidad_tanda']
-    : ['total', 'unitario']
-  const modoEfectivo = modosPosibles.includes(modo) ? modo : 'total'
+  // La compra por mayor es para lo que usa cada cartera (específicos y generales).
+  const modoEfectivo: Modo = usaTanda ? modo : 'total'
+  const porMayor = modoEfectivo === 'por_rendimiento'
 
   const categoria = categorias.find((c) => c.id === categoriaId)
   const subsConCuero =
@@ -70,20 +93,16 @@ export function GastoForm() {
   // Vista previa del monto
   const f = sinIva ? 1 + IVA : 1
   const nMonto = leerNumero(monto)
-  const nPrecio = leerNumero(precio)
-  const nCantidad = leerNumero(cantidad)
-  const tanda = tandas.find((t) => t.id === tandaId)
+  const nRinde = leerNumero(rinde)
+  const nUso = leerNumero(uso)
   let vistaPrevia: string | null = null
-  if (!pendiente) {
-    if (modoEfectivo === 'total' && nMonto !== null) vistaPrevia = pesos(nMonto * f, true)
-    if (modoEfectivo === 'unitario' && nPrecio !== null && nCantidad !== null)
-      vistaPrevia = `${pesos(nPrecio * f, true)} × ${numero(nCantidad)} = ${pesos(nPrecio * nCantidad * f, true)}`
-    if (modoEfectivo === 'por_unidad_tanda' && nPrecio !== null) {
-      const borrador = { tipo, productos: elegidos } as Gasto
-      const n = unidadesCubiertas(borrador, tanda)
-      vistaPrevia = tanda
-        ? `${pesos(nPrecio * f, true)} × ${n} unidades de la tanda = ${pesos(nPrecio * f * n, true)}`
-        : `${pesos(nPrecio * f, true)} por unidad (el total se calcula al asignar una tanda)`
+  if (!pendiente && nMonto !== null) {
+    if (!porMayor) vistaPrevia = pesos(nMonto * f, true) + (sinIva ? ' (con IVA)' : '')
+    else if (nRinde && nRinde > 0) {
+      const porCartera = (nMonto * f * (nUso ?? 1)) / nRinde
+      vistaPrevia = `${pesos(nMonto * f, true)} ÷ ${numero(nRinde)}${
+        (nUso ?? 1) !== 1 ? ` × ${numero(nUso ?? 1)}` : ''
+      } = ${pesos(porCartera, true)} por cartera`
     }
   }
 
@@ -115,13 +134,12 @@ export function GastoForm() {
     if (!descripcion.trim()) errs.descripcion = 'Escribí qué es este gasto'
     if (!categoriaId) errs.categoria = 'Elegí una categoría'
     if (!pendiente) {
-      if (modoEfectivo === 'total' && !(nMonto && nMonto > 0)) errs.monto = 'Escribí el monto'
-      if (modoEfectivo !== 'total' && !(nPrecio && nPrecio > 0)) errs.precio = 'Escribí el precio'
-      if (modoEfectivo === 'unitario' && !(nCantidad && nCantidad > 0))
-        errs.cantidad = 'Escribí la cantidad'
+      if (!(nMonto && nMonto > 0)) errs.monto = porMayor ? 'Escribí cuánto pagaste' : 'Escribí el monto'
+      if (porMayor && !(nRinde && nRinde > 0)) errs.rinde = 'Escribí cuántas trae o rinde'
+      if (porMayor && !(nUso && nUso > 0)) errs.uso = 'Escribí cuántas usa cada cartera (normalmente 1)'
     }
     if (usaProductos && elegidos.length === 0) errs.productos = 'Elegí al menos un producto'
-    if (usaProductos && conReparto && elegidos.length > 1 && Math.abs(sumaReparto - 100) > 0.01)
+    if (usaProductos && !porMayor && conReparto && elegidos.length > 1 && Math.abs(sumaReparto - 100) > 0.01)
       errs.reparto = `Los porcentajes tienen que sumar 100% (ahora suman ${numero(sumaReparto)}%)`
     return errs
   }
@@ -141,14 +159,16 @@ export function GastoForm() {
       estado,
       pendiente,
       modo_monto: modoEfectivo,
-      monto: !pendiente && modoEfectivo === 'total' ? nMonto : null,
-      precio_unitario: !pendiente && modoEfectivo !== 'total' ? nPrecio : null,
-      cantidad: !pendiente && modoEfectivo === 'unitario' ? nCantidad : null,
+      monto: pendiente ? null : nMonto,
+      precio_unitario: null,
+      cantidad: null,
+      rinde: !pendiente && porMayor ? nRinde : null,
+      uso: !pendiente && porMayor ? nUso : null,
       sin_iva: sinIva,
       tanda_id: usaTanda && tandaId ? tandaId : null,
       productos: usaProductos ? elegidos : [],
       reparto:
-        usaProductos && conReparto && elegidos.length > 1
+        usaProductos && !porMayor && conReparto && elegidos.length > 1
           ? Object.fromEntries(elegidos.map((pid) => [pid, leerNumero(reparto[pid] ?? '') ?? 0]))
           : null,
       frecuencia: tipo === 'recurrente' ? frecuencia : null,
@@ -279,8 +299,8 @@ export function GastoForm() {
 
         <div className="fila-campos">
           <div className="campo">
-            <label htmlFor="g-fecha">Fecha</label>
-            <input id="g-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <label htmlFor="g-fecha">Mes</label>
+            <SelectorMes id="g-fecha" valor={fecha} onChange={setFecha} />
           </div>
           <div className="campo">
             <span className="etiqueta">Estado</span>
@@ -309,47 +329,67 @@ export function GastoForm() {
 
         {!pendiente && (
           <>
-            <div className="campo">
-              <span className="etiqueta">¿Cómo lo cargás?</span>
-              <div className="acciones">
-                {modosPosibles.map((m) => (
-                  <label key={m} className="check">
-                    <input type="radio" checked={modoEfectivo === m} onChange={() => setModo(m)} />
-                    {MODOS[m]}
+            {usaTanda && (
+              <div className="campo">
+                <span className="etiqueta">¿Cómo lo cargás?</span>
+                <div className="opciones-tipo opciones-modo">
+                  <label className={`opcion-tipo ${!porMayor ? 'elegida' : ''}`}>
+                    <input type="radio" name="modo" checked={!porMayor} onChange={() => setModo('total')} />
+                    <strong>Monto total</strong>
+                    <span className="chico suave">
+                      Lo que pagaste por toda la tanda. Se reparte entre sus carteras. Ej: el taller
+                      cobra $ 250.000 por la tanda.
+                    </span>
                   </label>
-                ))}
-              </div>
-              {modoEfectivo === 'por_unidad_tanda' && (
-                <span className="ayuda">
-                  Para cosas que van una por cartera (cajas, bolsas): el total es el precio × las
-                  unidades de la tanda.
-                </span>
-              )}
-            </div>
-            <div className="fila-campos">
-              {modoEfectivo === 'total' ? (
-                <CampoPlata id="g-monto" etiqueta="Monto total" valor={monto} setValor={setMonto} error={errores.monto} />
-              ) : (
-                <CampoPlata
-                  id="g-precio"
-                  etiqueta={modoEfectivo === 'unitario' ? 'Precio unitario' : 'Precio por unidad'}
-                  valor={precio}
-                  setValor={setPrecio}
-                  error={errores.precio}
-                />
-              )}
-              {modoEfectivo === 'unitario' && (
-                <div className="campo">
-                  <label htmlFor="g-cant">Cantidad</label>
-                  <input
-                    id="g-cant"
-                    inputMode="decimal"
-                    value={cantidad}
-                    className={errores.cantidad ? 'invalido' : ''}
-                    onChange={(e) => setCantidad(e.target.value)}
-                  />
-                  {errores.cantidad && <span className="error-campo">{errores.cantidad}</span>}
+                  <label className={`opcion-tipo ${porMayor ? 'elegida' : ''}`}>
+                    <input type="radio" name="modo" checked={porMayor} onChange={() => setModo('por_rendimiento')} />
+                    <strong>Compra por mayor</strong>
+                    <span className="chico suave">
+                      Pagaste un paquete y cada cartera usa una parte. Ej: 100 bolsas por $ 13.324,
+                      una por cartera. Lo que sobra queda de stock.
+                    </span>
+                  </label>
                 </div>
+              </div>
+            )}
+            <div className="fila-campos">
+              <CampoPlata
+                id="g-monto"
+                etiqueta={porMayor ? 'Cuánto pagaste' : 'Monto total'}
+                valor={monto}
+                setValor={setMonto}
+                error={errores.monto}
+              />
+              {porMayor && (
+                <>
+                  <div className="campo">
+                    <label htmlFor="g-rinde">Cuántas trae o rinde</label>
+                    <input
+                      id="g-rinde"
+                      inputMode="decimal"
+                      placeholder="Ej: 100"
+                      value={rinde}
+                      className={errores.rinde ? 'invalido' : ''}
+                      onChange={(e) => setRinde(e.target.value)}
+                    />
+                    {errores.rinde ? (
+                      <span className="error-campo">{errores.rinde}</span>
+                    ) : (
+                      <span className="ayuda">Bolsas del paquete, o carteras que salen de una chapa.</span>
+                    )}
+                  </div>
+                  <div className="campo">
+                    <label htmlFor="g-uso">Cuántas usa cada cartera</label>
+                    <input
+                      id="g-uso"
+                      inputMode="decimal"
+                      value={uso}
+                      className={errores.uso ? 'invalido' : ''}
+                      onChange={(e) => setUso(e.target.value)}
+                    />
+                    {errores.uso && <span className="error-campo">{errores.uso}</span>}
+                  </div>
+                </>
               )}
             </div>
             <label className="check" style={{ marginBottom: 12 }}>
@@ -358,8 +398,8 @@ export function GastoForm() {
             </label>
             {vistaPrevia && (
               <p className="vista-previa">
-                Se carga: <strong>{vistaPrevia}</strong>
-                {sinIva && ' (con IVA)'}
+                {porMayor ? 'Cada cartera suma: ' : 'Se carga: '}
+                <strong>{vistaPrevia}</strong>
               </p>
             )}
           </>
@@ -395,14 +435,19 @@ export function GastoForm() {
           <div className="campo">
             <label htmlFor="g-tanda">Tanda</label>
             <select id="g-tanda" value={tandaId} onChange={(e) => setTandaId(e.target.value)}>
-              <option value="">Sin tanda todavía</option>
+              <option value="">{porMayor ? 'Todas las tandas' : 'Sin tanda todavía'}</option>
               {tandas.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.nombre}
                 </option>
               ))}
             </select>
-            {!tandaId && (
+            {porMayor ? (
+              <span className="ayuda">
+                Es un precio por cartera: vale para todas las tandas. Elegí una solo si en otra
+                compra el precio cambió.
+              </span>
+            ) : !tandaId && (
               <span className="ayuda">
                 Sin tanda, este gasto todavía no se suma a ningún costo.
                 {tandas.length === 0 && (
@@ -449,7 +494,7 @@ export function GastoForm() {
               ))}
             </div>
             {errores.productos && <span className="error-campo">{errores.productos}</span>}
-            {elegidos.length > 1 && modoEfectivo !== 'por_unidad_tanda' && (
+            {elegidos.length > 1 && !porMayor && (
               <>
                 <label className="check" style={{ marginTop: 8 }}>
                   <input

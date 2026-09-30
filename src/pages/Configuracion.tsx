@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Confirmar } from '../components/Confirmar'
-import { tandaArranque, unidadesDe } from '../lib/costeo'
+import { cantidadModelos, totalArranque } from '../lib/costeo'
 import { useData } from '../lib/data'
-import { leerNumero, numero, pct } from '../lib/format'
+import { leerNumero, numero, pct, pesos } from '../lib/format'
 import { comisionAplicada, MEDIOS } from '../lib/precios'
 import type { Categoria, ConfigDatos, MedioPago, MetodoReparto } from '../lib/types'
 
@@ -23,7 +23,7 @@ const METODOS: Record<MetodoReparto, { nombre: string; ayuda: string }> = {
 
 export function Configuracion() {
   const datos = useData()
-  const { config, guardarConfig, productos, tandas } = datos
+  const { config, guardarConfig, productos } = datos
   const [guardado, setGuardado] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,7 +38,6 @@ export function Configuracion() {
     }
   }
 
-  const principales = productos.filter((p) => !p.es_subproducto)
   const ventasPendientes =
     config.ventas_mensuales_modo === 'total'
       ? config.ventas_mensuales_total === null
@@ -142,40 +141,7 @@ export function Configuracion() {
         </label>
       </section>
 
-      <section className="tarjeta seccion-config">
-        <h2>Qué tanda paga las muestras y los moldes</h2>
-        <p className="suave">
-          Los gastos de arranque (muestras, moldes) se reparten entre las unidades de una sola tanda
-          de cada producto, la de lanzamiento. Por defecto, la primera.
-        </p>
-        {principales.map((p) => {
-          const posibles = tandas.filter((t) => unidadesDe(t, p.id) > 0)
-          const actual = tandaArranque(datos, p.id)
-          return (
-            <div key={p.id} className="campo campo-fila">
-              <label htmlFor={`a-${p.id}`}>{p.nombre}</label>
-              {posibles.length === 0 ? (
-                <span className="suave chico">Todavía no está en ninguna tanda</span>
-              ) : (
-                <select
-                  id={`a-${p.id}`}
-                  value={config.arranque_tanda[p.id] ?? ''}
-                  onChange={(e) =>
-                    guardar({ arranque_tanda: { ...config.arranque_tanda, [p.id]: e.target.value || null } })
-                  }
-                >
-                  <option value="">La primera ({actual && !config.arranque_tanda[p.id] ? actual.nombre : posibles[0].nombre})</option>
-                  {posibles.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.nombre}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )
-        })}
-      </section>
+      <Muestras guardar={guardar} />
 
       <Precios guardar={guardar} />
 
@@ -472,21 +438,6 @@ function Precios({ guardar }: { guardar: (c: Partial<ConfigDatos>) => Promise<vo
             ))}
           </select>
         </div>
-        <label className="check check-alto" style={{ marginBottom: 16 }}>
-          <input
-            type="checkbox"
-            checked={config.precio_con_arranque}
-            onChange={(e) => guardar({ precio_con_arranque: e.target.checked })}
-          />
-          <span>
-            Cobrar las muestras y los moldes en el precio de la tanda de lanzamiento
-            <br />
-            <span className="suave chico">
-              Así los recuperás con esas ventas. En las tandas siguientes el precio vuelve a salir del
-              costo real.
-            </span>
-          </span>
-        </label>
         <div className="campo campo-fila">
           <label htmlFor="c-redondeo">Redondear el precio sugerido</label>
           <select
@@ -501,5 +452,72 @@ function Precios({ guardar }: { guardar: (c: Partial<ConfigDatos>) => Promise<vo
         </div>
       </section>
     </>
+  )
+}
+
+function Muestras({ guardar }: { guardar: (c: Partial<ConfigDatos>) => Promise<void> }) {
+  const datos = useData()
+  const { config, gastos } = datos
+  const total = totalArranque(gastos)
+  const modelos = cantidadModelos(datos)
+  const n = config.arranque_recuperar_en
+  const opciones = [...new Set([modelos, 10, 30, 50, n])].filter((x) => x > 0).sort((a, b) => a - b)
+
+  return (
+    <section className="tarjeta seccion-config">
+      <h2>Muestras y moldes</h2>
+      <p className="suave">
+        Se pagan una sola vez. ¿En cuántas carteras querés recuperarlos? Se reparten entre las
+        primeras carteras que hagas de cada modelo; después ya no se cobran.
+      </p>
+      <CampoNumero
+        id="c-recuperar"
+        etiqueta={`Recuperarlos en (carteras en total, ${numero(n / modelos)} de cada modelo)`}
+        valor={n}
+        onGuardar={(v) => guardar({ arranque_recuperar_en: v && v > 0 ? Math.round(v) : 30 })}
+      />
+      {total > 0 && (
+        <table className="tabla" style={{ marginTop: 12 }}>
+          <thead>
+            <tr>
+              <th>Si los recuperás en…</th>
+              {opciones.map((o) => (
+                <th key={o} className={`num ${o === n ? 'col-principal' : ''}`}>
+                  {o} carteras
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Muestras y moldes por cartera (promedio)</td>
+              {opciones.map((o) => (
+                <td key={o} className={`num ${o === n ? 'col-principal' : ''}`}>
+                  {pesos(total / o)}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      )}
+      <p className="suave chico" style={{ marginTop: 8 }}>
+        Invertiste {pesos(total)} en muestras y moldes ({modelos} modelos).
+      </p>
+      <label className="check check-alto" style={{ marginTop: 12 }}>
+        <input
+          type="checkbox"
+          checked={config.precio_con_arranque}
+          onChange={(e) => guardar({ precio_con_arranque: e.target.checked })}
+        />
+        <span>
+          Incluirlos en el precio sugerido
+          <br />
+          <span className="suave chico">
+            Mientras se recuperan, el precio de esas carteras los incluye. Después el precio sale
+            del costo por cartera.
+          </span>
+        </span>
+      </label>
+    </section>
   )
 }

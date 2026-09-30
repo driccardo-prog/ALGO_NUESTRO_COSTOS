@@ -3,6 +3,7 @@ import { useData } from '../lib/data'
 import { fecha } from '../lib/format'
 import type { Dimension, Ficha, Producto } from '../lib/types'
 import { FotosProducto } from './FotosProducto'
+import { SelectorMes } from './SelectorMes'
 import { ListaEditable } from './ListaEditable'
 
 export function FichaTecnica({
@@ -244,13 +245,8 @@ function FormFicha({
               />
             </div>
             <div className="campo">
-              <label htmlFor="f-fecha">Fecha</label>
-              <input
-                id="f-fecha"
-                type="date"
-                value={f.fecha}
-                onChange={(e) => set('fecha', e.target.value)}
-              />
+              <label htmlFor="f-fecha">Mes</label>
+              <SelectorMes id="f-fecha" valor={f.fecha} onChange={(v) => set('fecha', v)} />
             </div>
           </div>
           <div className="campo">

@@ -81,6 +81,14 @@ La primera vez, la app carga sola los 3 productos con sus fichas técnicas, los 
 
 ---
 
+## Actualizaciones de la base de datos
+
+Algunas mejoras necesitan agregar campos a la base. Cuando haga falta, se corre el archivo que corresponda **una sola vez**, igual que en el paso 1: Supabase → **SQL Editor** → **New query**, pegar todo el texto y **Run**.
+
+- [`supabase/actualizacion_02.sql`](../supabase/actualizacion_02.sql): compras por mayor ("pagué X por N unidades") y fechas por mes.
+
+Si la app dice "Falta actualizar la base de datos", es que falta correr alguno de estos archivos.
+
 ## El logo
 
 Para que aparezca el logo caligráfico en vez del nombre escrito:

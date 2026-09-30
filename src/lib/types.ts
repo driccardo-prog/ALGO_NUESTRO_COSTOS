@@ -52,7 +52,10 @@ export interface Tanda {
 
 export type TipoGasto = 'especifico' | 'general' | 'arranque' | 'recurrente'
 export type EstadoGasto = 'real' | 'estimado'
-export type ModoMonto = 'total' | 'unitario' | 'por_unidad_tanda'
+// total: lo pagado se reparte entre las carteras de la tanda
+// por_rendimiento: compra por mayor (pagué X por N unidades, cada cartera usa M)
+// unitario / por_unidad_tanda: formas viejas, se leen como costo por cartera
+export type ModoMonto = 'total' | 'por_rendimiento' | 'unitario' | 'por_unidad_tanda'
 
 export interface Gasto {
   id: Id
@@ -66,6 +69,10 @@ export interface Gasto {
   monto: number | null
   precio_unitario: number | null
   cantidad: number | null
+  /** compra por mayor: cuántas unidades trae o cuántas carteras rinde */
+  rinde: number | null
+  /** compra por mayor: cuántas usa cada cartera */
+  uso: number | null
   sin_iva: boolean
   tanda_id: Id | null
   productos: Id[]
@@ -95,8 +102,8 @@ export interface Comisiones {
 export interface ConfigDatos {
   seed_version: number
   metodo_reparto_generales: MetodoReparto
-  // tanda que absorbe el arranque de cada producto (null = la primera)
-  arranque_tanda: Record<Id, Id | null>
+  // en cuántas carteras (en total) se recuperan las muestras y los moldes
+  arranque_recuperar_en: number
   ventas_mensuales_modo: 'total' | 'por_producto'
   ventas_mensuales_total: number | null
   ventas_mensuales_por_producto: Record<Id, number | null>

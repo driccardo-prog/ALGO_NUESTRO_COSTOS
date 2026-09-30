@@ -22,17 +22,23 @@ export function numero(n: number): string {
   return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(n)
 }
 
-/** AAAA-MM-DD → DD/MM/AAAA */
+export const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+]
+
+/** Las fechas se cargan solo con mes y año: AAAA-MM-DD → "octubre 2026" */
 export function fecha(iso: string | null | undefined): string {
   if (!iso) return 'sin fecha'
-  const [a, m, d] = iso.split('-')
-  return `${d}/${m}/${a}`
+  const [a, m] = iso.split('-')
+  const mes = MESES[Number(m) - 1]
+  return mes ? `${mes} ${a}` : 'sin fecha'
 }
 
-export function hoyISO(): string {
+/** Primer día del mes actual, en formato AAAA-MM-01 */
+export function mesActual(): string {
   const d = new Date()
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
 
 /**

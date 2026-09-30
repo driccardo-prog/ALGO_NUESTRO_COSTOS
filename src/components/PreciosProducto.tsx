@@ -50,8 +50,8 @@ export function PreciosProducto({ c, nombre }: { c: CosteoProducto; nombre: stri
           <thead>
             <tr>
               <th>Margen</th>
-              <th className="num">Sobre el costo real</th>
-              {c.absorbeArranque && <th className="num">Con arranque</th>}
+              <th className="num">Sobre el costo por cartera</th>
+              {c.absorbeArranque && <th className="num">Con muestras y moldes</th>}
             </tr>
           </thead>
           <tbody>
@@ -99,11 +99,11 @@ export function PreciosProducto({ c, nombre }: { c: CosteoProducto; nombre: stri
             <div className="acciones chico" style={{ marginBottom: 8 }}>
               <label className="check">
                 <input type="radio" checked={base === 'real'} onChange={() => setBase('real')} />
-                Contra el costo real
+                Contra el costo por cartera
               </label>
               <label className="check">
                 <input type="radio" checked={base === 'arranque'} onChange={() => setBase('arranque')} />
-                Con arranque
+                Con muestras y moldes
               </label>
             </div>
           )}
