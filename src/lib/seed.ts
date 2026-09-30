@@ -47,6 +47,7 @@ export function configInicial(): ConfigDatos {
     redondeo: 1000,
     subproductos_en_generales: true,
     precio_con_arranque: true,
+    repetidos_ignorados: [],
   }
 }
 

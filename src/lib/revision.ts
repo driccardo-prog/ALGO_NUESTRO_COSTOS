@@ -2,10 +2,12 @@
 // gastos sin tanda, gastos que no se suman a ninguna cartera y posibles repetidos.
 
 import {
+  costoPorCartera,
   esCuero,
   esPorConsumo,
   participantesGenerales,
   productosDelGasto,
+  montoGasto,
   unidadesDe,
   type Datos,
 } from './costeo'
@@ -75,28 +77,54 @@ export function revisarGastos(d: Datos): Revision {
     }
   }
 
-  // Posibles repetidos: mismo nombre, o mismo tipo, categoría, tanda y productos
-  // con uno estimado y otro real (presupuesto + factura).
-  const grupos = new Map<string, Gasto[]>()
-  const agregar = (clave: string, g: Gasto) => grupos.set(clave, [...(grupos.get(clave) ?? []), g])
-  for (const g of d.gastos) {
-    if (g.pendiente) continue
-    const productos = [...g.productos].sort().join(',')
-    agregar(`n|${g.tipo}|${normalizar(g.descripcion)}|${g.tanda_id ?? ''}`, g)
-    agregar(`c|${g.tipo}|${g.categoria_id}|${g.tanda_id ?? ''}|${productos}`, g)
-  }
-  const vistos = new Set<string>()
+  // Posibles repetidos:
+  // - mismo nombre (y mismo tipo y tanda), o
+  // - presupuesto + factura: misma categoría, tanda y carteras, uno estimado y otro real,
+  //   cargados de la misma forma y con montos parecidos (hasta 30% de diferencia).
+  const vistos = new Set<string>(d.config.repetidos_ignorados ?? [])
   const repetidos: Gasto[][] = []
-  for (const [clave, gs] of grupos) {
-    if (gs.length < 2) continue
-    // por categoría solo cuenta si hay un estimado y un real
-    if (clave.startsWith('c|') && !(gs.some((g) => g.estado === 'estimado') && gs.some((g) => g.estado === 'real')))
-      continue
-    const id = gs.map((g) => g.id).sort().join('|')
-    if (vistos.has(id)) continue
+  const sumar = (gs: Gasto[]) => {
+    const id = claveRepetidos(gs)
+    if (vistos.has(id)) return
     vistos.add(id)
     repetidos.push(gs)
   }
 
+  const porNombre = new Map<string, Gasto[]>()
+  const porCategoria = new Map<string, Gasto[]>()
+  const agregar = (m: Map<string, Gasto[]>, clave: string, g: Gasto) => m.set(clave, [...(m.get(clave) ?? []), g])
+  for (const g of d.gastos) {
+    if (g.pendiente) continue
+    const productos = [...g.productos].sort().join(',')
+    agregar(porNombre, `${g.tipo}|${normalizar(g.descripcion)}|${g.tanda_id ?? ''}`, g)
+    agregar(porCategoria, `${g.tipo}|${g.categoria_id}|${g.tanda_id ?? ''}|${productos}|${esPorConsumo(g)}`, g)
+  }
+  for (const gs of porNombre.values()) if (gs.length > 1) sumar(gs)
+  for (const gs of porCategoria.values()) {
+    for (const e of gs.filter((g) => g.estado === 'estimado')) {
+      for (const r of gs.filter((g) => g.estado === 'real')) {
+        if (parecidos(valorComparable(e), valorComparable(r))) sumar([e, r])
+      }
+    }
+  }
+
   return { sinTanda, noSuman, repetidos }
+}
+
+/** Identificador de un grupo de posibles repetidos (para poder marcarlo como "no son repetidos"). */
+export function claveRepetidos(gs: Gasto[]): string {
+  return gs
+    .map((g) => g.id)
+    .sort()
+    .join('|')
+}
+
+/** Lo que se compara entre dos gastos: el costo por cartera si es compra por mayor, o el monto. */
+function valorComparable(g: Gasto): number {
+  return esPorConsumo(g) ? costoPorCartera(g) : montoGasto(g)
+}
+
+function parecidos(a: number, b: number): boolean {
+  if (a <= 0 || b <= 0) return false
+  return Math.max(a, b) / Math.min(a, b) <= 1.3
 }

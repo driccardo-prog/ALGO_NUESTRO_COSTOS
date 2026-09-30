@@ -344,4 +344,21 @@ describe('control de plata perdida o duplicada', () => {
     expect(r).toHaveLength(1)
     expect(r[0].map((g) => g.descripcion).sort()).toEqual(['Factura taller', 'Taller tanda 1'])
   })
+
+  it('no confunde cosas distintas de la misma categoría (bolsa de lienzo y bolsas e-commerce)', () => {
+    const todas = ['gauchita', 'potra', 'criolla']
+    const d = datos([
+      gasto({ tipo: 'especifico', descripcion: 'Bolsa de lienzo', estado: 'estimado', modo_monto: 'por_rendimiento', monto: 5253.35, rinde: 1, uso: 1, sin_iva: true, tanda_id: null, productos: todas }),
+      gasto({ tipo: 'especifico', descripcion: 'Bolsas e-commerce', estado: 'real', modo_monto: 'por_rendimiento', monto: 13324, rinde: 100, uso: 1, tanda_id: null, productos: todas }),
+    ])
+    expect(revisarGastos(d).repetidos).toHaveLength(0)
+  })
+
+  it('se puede marcar un par como "no son repetidos"', () => {
+    const a = gasto({ tipo: 'especifico', descripcion: 'Taller', monto: 100000, productos: ['gauchita'] })
+    const b = gasto({ tipo: 'especifico', descripcion: 'Taller', monto: 100000, productos: ['gauchita'] })
+    expect(revisarGastos(datos([a, b])).repetidos).toHaveLength(1)
+    const d = datos([a, b], {}, { repetidos_ignorados: [[a.id, b.id].sort().join('|')] })
+    expect(revisarGastos(d).repetidos).toHaveLength(0)
+  })
 })
