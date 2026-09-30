@@ -4,15 +4,15 @@ import { costearProducto, tandaReferencia, unidadesDe, type Linea, type TipoLine
 import { useData } from '../lib/data'
 import { pct, pesos } from '../lib/format'
 import type { Producto } from '../lib/types'
-import { AvisoSinTanda } from './AvisoSinTanda'
+import { AvisoGastos } from './AvisoGastos'
 import { Info } from './Info'
 import { PreciosProducto } from './PreciosProducto'
 
 const TITULOS: Record<TipoLinea, string> = {
-  especifico: 'Gastos específicos',
-  general: 'Gastos generales',
-  recurrente: 'Recurrentes mensuales',
-  arranque: 'Arranque',
+  especifico: 'Materiales, taller y packaging',
+  general: 'Gastos de la tanda',
+  recurrente: 'Gastos fijos del mes',
+  arranque: 'Muestras y moldes',
 }
 
 export function Costeo({ producto }: { producto: Producto }) {
@@ -57,7 +57,7 @@ export function Costeo({ producto }: { producto: Producto }) {
           >
             {conProducto.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.nombre} · {unidadesDe(t, producto.id)} unidades
+                {t.nombre} · {unidadesDe(t, producto.id)} {unidadesDe(t, producto.id) === 1 ? 'unidad' : 'unidades'}
               </option>
             ))}
           </select>
@@ -71,7 +71,7 @@ export function Costeo({ producto }: { producto: Producto }) {
         </div>
       </div>
 
-      <AvisoSinTanda />
+      <AvisoGastos />
 
       {(c.faltan.length > 0 || c.recurrentesPendiente) && (
         <ul className="lista-pendientes" style={{ marginBottom: 20 }}>
@@ -91,45 +91,44 @@ export function Costeo({ producto }: { producto: Producto }) {
 
       <div className="costeo">
         <div className="tarjeta">
-          <h3>Costo por unidad</h3>
+          <h3>Hacer una {producto.nombre} te sale</h3>
           <table className="tabla tabla-costos">
             <tbody>
-              <Fila titulo="Costo específico" monto={c.especifico} info={c.explicaciones.especifico} />
-              <Fila titulo="Gastos generales" monto={c.general} info={c.explicaciones.general} />
               <Fila
-                titulo="Recurrentes mensuales"
+                titulo="Materiales, taller y packaging"
+                monto={c.especifico}
+                info={c.explicaciones.especifico}
+              />
+              <Fila titulo="Gastos de la tanda (flete, etc.)" monto={c.general} info={c.explicaciones.general} />
+              <Fila
+                titulo="Gastos fijos del mes"
                 monto={c.recurrente}
                 info={c.explicaciones.recurrente}
                 pendiente={c.recurrentesPendiente}
               />
-              <Fila titulo="Costo real por unidad" monto={c.real} info={c.explicaciones.real} total />
-              {c.absorbeArranque ? (
-                <>
-                  <Fila titulo="Arranque (muestras, moldes)" monto={c.arranque} info={c.explicaciones.arranque} />
-                  <Fila
-                    titulo="Costo con arranque por unidad"
-                    monto={c.conArranque}
-                    info={c.explicaciones.conArranque}
-                    total
-                  />
-                </>
-              ) : (
-                <tr>
-                  <td colSpan={2} className="suave chico">
-                    Los gastos de arranque los absorbe otra tanda (la primera de este producto).
-                  </td>
-                </tr>
-              )}
+              <Fila titulo="Costo por cartera" monto={c.real} info={c.explicaciones.real} total />
+              <Fila titulo="+ Muestras y moldes" monto={c.arranque} info={c.explicaciones.arranque} />
+              <Fila
+                titulo="Costo con todo incluido"
+                monto={c.conArranque}
+                info={c.explicaciones.conArranque}
+                total
+              />
             </tbody>
           </table>
+          {c.arranqueCompleto > 0 && !c.absorbeArranque && (
+            <p className="suave chico">
+              Las muestras y los moldes ya se recuperaron con las primeras carteras de este modelo.
+            </p>
+          )}
         </div>
 
         <div className="tarjeta">
-          <h3>¿En qué se va el costo real?</h3>
+          <h3>¿En qué se va el costo por cartera?</h3>
           {c.porCategoria.length === 0 ? (
             <p className="suave">Todavía no hay gastos con monto en esta tanda.</p>
           ) : (
-            <table className="tabla barras" aria-label="Costo real por unidad, por categoría">
+            <table className="tabla barras" aria-label="Costo por cartera, por categoría">
               <tbody>
                 {c.porCategoria.map((x) => (
                   <tr key={x.categoriaId ?? 'sin'} title={`${nombreCat(x.categoriaId)}: ${pesos(x.monto)}`}>

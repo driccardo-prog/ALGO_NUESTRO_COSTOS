@@ -2,9 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Confirmar } from '../components/Confirmar'
 import { ResumenTanda } from '../components/ResumenTanda'
+import { SelectorMes } from '../components/SelectorMes'
 import { tandasOrdenadas, totalUnidades } from '../lib/costeo'
 import { useData } from '../lib/data'
-import { fecha, hoyISO, leerNumero } from '../lib/format'
+import { fecha, mesActual, leerNumero } from '../lib/format'
 import { ESTADOS_TANDA, TIPOS } from '../lib/gastos'
 import type { EstadoTanda, Tanda } from '../lib/types'
 
@@ -99,7 +100,7 @@ export function Tandas() {
 function FormTanda({ tanda, onCerrar }: { tanda: Tanda | null; onCerrar: () => void }) {
   const { tandas, productos, gastos, crear, editar, borrar } = useData()
   const [nombre, setNombre] = useState(tanda?.nombre ?? (tandas.length === 0 ? 'Lanzamiento' : `Tanda ${tandas.length + 1}`))
-  const [fechaT, setFechaT] = useState(tanda?.fecha ?? hoyISO())
+  const [fechaT, setFechaT] = useState(tanda?.fecha ?? mesActual())
   const [estado, setEstado] = useState<EstadoTanda>(tanda?.estado ?? 'planificada')
   const [unidades, setUnidades] = useState<Record<string, string>>(() =>
     Object.fromEntries(productos.map((p) => [p.id, String(tanda?.unidades[p.id] ?? '')])),
@@ -188,8 +189,8 @@ function FormTanda({ tanda, onCerrar }: { tanda: Tanda | null; onCerrar: () => v
         </div>
         <div className="fila-campos">
           <div className="campo">
-            <label htmlFor="t-fecha">Fecha</label>
-            <input id="t-fecha" type="date" value={fechaT} onChange={(e) => setFechaT(e.target.value)} />
+            <label htmlFor="t-fecha">Mes</label>
+            <SelectorMes id="t-fecha" valor={fechaT ?? ''} onChange={setFechaT} permitirVacio={false} />
           </div>
           <div className="campo">
             <label htmlFor="t-estado">Estado</label>

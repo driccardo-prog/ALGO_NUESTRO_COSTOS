@@ -23,6 +23,11 @@ function limpiar<T>(fila: Record<string, unknown>): T {
 }
 
 function mensaje(error: { message: string }): Error {
+  // La base todavía no tiene los campos de "compra por mayor"
+  if (/rinde|\buso\b|modo_monto_check/i.test(error.message))
+    return new Error(
+      'Falta actualizar la base de datos: en Supabase, abrí SQL Editor, pegá el archivo supabase/actualizacion_02.sql y tocá Run.',
+    )
   return new Error(`No se pudo guardar en la base de datos: ${error.message}`)
 }
 

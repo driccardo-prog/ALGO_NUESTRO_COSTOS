@@ -1,6 +1,16 @@
 // Motor de cálculo de costos por producto y tanda.
 // Todas las funciones son puras: reciben los datos y devuelven los números,
 // con una explicación en palabras de cada cuenta.
+//
+// Dos formas de cargar un gasto:
+// - Monto total: lo que se pagó por la tanda se reparte entre sus carteras
+//   (ej: el taller cobra $250.000 por 10 Gauchitas → $25.000 cada una).
+// - Compra por mayor: se pagó X por N unidades y cada cartera usa M
+//   (ej: $13.324 por 100 bolsas, una por cartera → $133 por cartera).
+//   No depende de cuántas carteras tenga la tanda: lo que sobra queda como stock.
+//
+// Las muestras y los moldes (arranque) se recuperan en las primeras carteras
+// que se hacen de cada modelo (Configuración → "recuperar en N carteras").
 
 import { numero, pesos } from './format'
 import type { Categoria, ConfigDatos, Gasto, Id, Producto, Tanda } from './types'
@@ -34,12 +44,19 @@ export interface CosteoProducto {
   especifico: number
   general: number
   recurrente: number
+  /** costo por cartera, sin muestras ni moldes */
   real: number
+  /** muestras y moldes por cartera en esta tanda (promedio si solo una parte todavía los paga) */
   arranque: number
+  /** muestras y moldes que paga cada cartera mientras se recuperan */
+  arranqueCompleto: number
   conArranque: number
+  /** true si alguna cartera de esta tanda todavía paga muestras y moldes */
   absorbeArranque: boolean
+  /** cuántas carteras de este modelo recuperan las muestras y cuántas de esta tanda entran */
+  recupero: { porModelo: number; antes: number; enEstaTanda: number }
   lineas: Linea[]
-  /** costo real por unidad, separado por categoría */
+  /** costo por cartera separado por categoría (sin muestras ni moldes) */
   porCategoria: { categoriaId: Id | null; monto: number }[]
   incluyeEstimados: boolean
   /** descripciones de gastos sin monto que afectan a este producto */
@@ -64,25 +81,61 @@ export function factorIva(g: Gasto): number {
   return g.sin_iva ? 1 + IVA : 1
 }
 
-/** Precio por unidad de un gasto cargado "por unidad producida", con IVA. */
-export function precioPorUnidad(g: Gasto): number {
-  return (g.precio_unitario ?? 0) * factorIva(g)
+/** true si el gasto se carga por lo que usa cada cartera (compra por mayor). */
+export function esPorConsumo(g: Gasto): boolean {
+  return g.modo_monto !== 'total'
 }
 
 /**
- * Monto total del gasto, IVA incluido. Para "por unidad producida" hace falta
- * saber cuántas unidades cubre (unidadesCubiertas).
+ * Cuánto le cuesta a cada cartera un gasto "por consumo", IVA incluido.
+ * Compra por mayor: pagado ÷ lo que trae × lo que usa cada cartera.
+ * (Las formas viejas "precio unitario" y "por unidad producida" valen una por cartera.)
  */
-export function montoGasto(g: Gasto, unidadesCubiertas = 0): number {
+export function costoPorCartera(g: Gasto): number {
+  if (g.pendiente) return 0
+  const f = factorIva(g)
+  switch (g.modo_monto) {
+    case 'por_rendimiento': {
+      const rinde = g.rinde ?? 0
+      if (rinde <= 0) return 0
+      return ((g.monto ?? 0) * f * (g.uso ?? 1)) / rinde
+    }
+    case 'unitario':
+    case 'por_unidad_tanda':
+      return (g.precio_unitario ?? 0) * f
+    case 'total':
+      return 0
+  }
+}
+
+/** Explicación de la cuenta de un gasto por consumo. */
+function explicarConsumo(g: Gasto): string {
+  const pc = pesos(costoPorCartera(g), true)
+  const iva = g.sin_iva ? ' (con IVA)' : ''
+  if (g.modo_monto === 'por_rendimiento' && (g.rinde ?? 0) === 1 && (g.uso ?? 1) === 1) {
+    // una por cartera: alcanza con mostrar el precio (y el IVA, si se sumó)
+    return g.sin_iva ? `${pesos(g.monto ?? 0, true)} + 21% IVA = ${pc} por cartera` : `${pc} por cartera`
+  }
+  if (g.modo_monto === 'por_rendimiento') {
+    const pagado = pesos((g.monto ?? 0) * factorIva(g), true)
+    const uso = (g.uso ?? 1) !== 1 ? ` × ${numero(g.uso ?? 1)} que usa cada cartera` : ''
+    return `${pagado}${iva} ÷ ${numero(g.rinde ?? 0)} que trae${uso} = ${pc} por cartera`
+  }
+  return `${pc} por cartera${iva}`
+}
+
+/** Lo que se pagó por el gasto, IVA incluido. */
+export function montoGasto(g: Gasto): number {
   if (g.pendiente) return 0
   const f = factorIva(g)
   switch (g.modo_monto) {
     case 'total':
+    case 'por_rendimiento':
       return (g.monto ?? 0) * f
     case 'unitario':
       return (g.precio_unitario ?? 0) * (g.cantidad ?? 0) * f
     case 'por_unidad_tanda':
-      return precioPorUnidad(g) * unidadesCubiertas
+      return (g.precio_unitario ?? 0) * f
   }
 }
 
@@ -100,7 +153,7 @@ export function totalUnidades(t: Tanda): number {
   return Object.values(t.unidades).reduce((a, n) => a + Math.max(0, Number(n) || 0), 0)
 }
 
-/** Tandas ordenadas de la más vieja a la más nueva (por fecha; sin fecha, al final). */
+/** Tandas ordenadas de la más vieja a la más nueva (por mes; sin fecha, al final). */
 export function tandasOrdenadas(tandas: Tanda[]): Tanda[] {
   return tandas
     .map((t, i) => ({ t, i }))
@@ -112,17 +165,14 @@ export function tandasOrdenadas(tandas: Tanda[]): Tanda[] {
     .map((x) => x.t)
 }
 
-/** Tanda que absorbe los gastos de arranque de un producto. */
-export function tandaArranque(d: Datos, productoId: Id): Tanda | null {
-  const elegida = d.config.arranque_tanda[productoId]
-  if (elegida) {
-    const t = d.tandas.find((x) => x.id === elegida)
-    if (t && unidadesDe(t, productoId) > 0) return t
-  }
-  return tandasOrdenadas(d.tandas).find((t) => unidadesDe(t, productoId) > 0) ?? null
+/** true si el gasto entra en el costeo de esta tanda. */
+export function aplicaATanda(g: Gasto, t: Tanda): boolean {
+  // Una compra por mayor sin tanda es un precio por cartera: vale para todas.
+  if (esPorConsumo(g) && !g.tanda_id) return true
+  return g.tanda_id === t.id
 }
 
-function esCuero(d: Datos, g: Gasto): boolean {
+export function esCuero(d: Datos, g: Gasto): boolean {
   return d.categorias.find((c) => c.id === g.categoria_id)?.es_cuero ?? false
 }
 
@@ -131,13 +181,13 @@ function esSub(d: Datos, id: Id): boolean {
 }
 
 /** Productos a los que aplica un gasto específico o de arranque (el cuero no va a subproductos). */
-function productosDelGasto(d: Datos, g: Gasto): Id[] {
+export function productosDelGasto(d: Datos, g: Gasto): Id[] {
   const existentes = g.productos.filter((id) => d.productos.some((x) => x.id === id))
   return esCuero(d, g) ? existentes.filter((id) => !esSub(d, id)) : existentes
 }
 
 /** Productos de la tanda que participan del reparto de gastos generales. */
-function participantesGenerales(d: Datos, t: Tanda): Id[] {
+export function participantesGenerales(d: Datos, t: Tanda): Id[] {
   return d.productos
     .filter((x) => unidadesDe(t, x.id) > 0)
     .filter((x) => d.config.subproductos_en_generales || !x.es_subproducto)
@@ -145,10 +195,7 @@ function participantesGenerales(d: Datos, t: Tanda): Id[] {
 }
 
 /** Reparto de un monto entre productos según porcentajes (normalizados a los presentes). */
-function repartoPorcentual(
-  reparto: Record<Id, number>,
-  ids: Id[],
-): Record<Id, number> | null {
+function repartoPorcentual(reparto: Record<Id, number>, ids: Id[]): Record<Id, number> | null {
   const suma = ids.reduce((a, id) => a + (reparto[id] ?? 0), 0)
   if (suma <= 0) return null
   return Object.fromEntries(ids.map((id) => [id, (reparto[id] ?? 0) / suma]))
@@ -159,20 +206,17 @@ interface Aporte {
   explicacion: Record<Id, string>
 }
 
-/** Gastos específicos de una tanda: cuánto suma cada uno por unidad de cada producto. */
+/** Gasto específico: cuánto suma por unidad de cada producto de la tanda. */
 function aporteEspecifico(d: Datos, t: Tanda, g: Gasto): Aporte {
   const ids = productosDelGasto(d, g).filter((id) => unidadesDe(t, id) > 0)
   const porUnidad: Record<Id, number> = {}
   const explicacion: Record<Id, string> = {}
   if (ids.length === 0) return { porUnidad, explicacion }
 
-  if (g.modo_monto === 'por_unidad_tanda') {
-    const pu = precioPorUnidad(g)
+  if (esPorConsumo(g)) {
     for (const id of ids) {
-      porUnidad[id] = pu
-      explicacion[id] = g.sin_iva
-        ? `${pesos(g.precio_unitario ?? 0, true)} + 21% IVA = ${pesos(pu, true)} por unidad`
-        : `${pesos(pu, true)} por unidad`
+      porUnidad[id] = costoPorCartera(g)
+      explicacion[id] = explicarConsumo(g)
     }
     return { porUnidad, explicacion }
   }
@@ -210,8 +254,8 @@ function costoDirectoPorProducto(d: Datos, t: Tanda, gastos: Gasto[]): Record<Id
 
 /**
  * Pesos por producto para repartir generales y recurrentes, según el método
- * configurado. Devuelve, para cada producto, cuántas "unidades equivalentes"
- * representa cada una de sus unidades (1 = reparto parejo).
+ * configurado. Para cada producto, cuántas "unidades equivalentes" representa
+ * cada una de sus unidades (1 = reparto parejo).
  */
 function pesosReparto(
   d: Datos,
@@ -228,9 +272,7 @@ function pesosReparto(
     if (totalDirecto <= 0) return { ...parejo, metodo: 'por unidad (todavía no hay costos directos)' }
     const promedio = totalDirecto / U
     return {
-      peso: Object.fromEntries(
-        ids.map((id) => [id, (directo[id] ?? 0) / unidadesDe(t, id) / promedio]),
-      ),
+      peso: Object.fromEntries(ids.map((id) => [id, (directo[id] ?? 0) / unidadesDe(t, id) / promedio])),
       metodo: 'por costo directo',
     }
   }
@@ -239,11 +281,8 @@ function pesosReparto(
     const v = d.config.ventas_mensuales_por_producto
     const totalV = ids.reduce((a, id) => a + (v[id] ?? 0), 0)
     if (totalV <= 0) return { ...parejo, metodo: 'por unidad (faltan las ventas por producto)' }
-    // cada producto absorbe según su parte de las ventas, dividida por sus unidades
     return {
-      peso: Object.fromEntries(
-        ids.map((id) => [id, ((v[id] ?? 0) / totalV) * (U / unidadesDe(t, id))]),
-      ),
+      peso: Object.fromEntries(ids.map((id) => [id, ((v[id] ?? 0) / totalV) * (U / unidadesDe(t, id))])),
       metodo: 'por volumen de ventas',
     }
   }
@@ -257,11 +296,66 @@ export function ventasMensuales(config: ConfigDatos): number | null {
       ? config.ventas_mensuales_total
       : null
   }
-  const suma = Object.values(config.ventas_mensuales_por_producto).reduce<number>(
-    (a, n) => a + (n ?? 0),
-    0,
-  )
+  const suma = Object.values(config.ventas_mensuales_por_producto).reduce<number>((a, n) => a + (n ?? 0), 0)
   return suma > 0 ? suma : null
+}
+
+/** Cantidad de modelos (productos principales), para repartir la recuperación de muestras. */
+export function cantidadModelos(d: Datos): number {
+  return Math.max(1, d.productos.filter((x) => !x.es_subproducto).length)
+}
+
+/** En cuántas carteras de cada modelo se recuperan las muestras y los moldes. */
+export function carterasPorModelo(d: Datos): number {
+  const total = d.config.arranque_recuperar_en > 0 ? d.config.arranque_recuperar_en : 30
+  return total / cantidadModelos(d)
+}
+
+/** Unidades de un producto en las tandas anteriores a esta. */
+function unidadesAntes(d: Datos, productoId: Id, t: Tanda): number {
+  let suma = 0
+  for (const x of tandasOrdenadas(d.tandas)) {
+    if (x.id === t.id) break
+    suma += unidadesDe(x, productoId)
+  }
+  return suma
+}
+
+/**
+ * Muestras y moldes de un producto: cuánto paga cada cartera mientras se
+ * recuperan, con el detalle por gasto.
+ */
+export function arranquePorCartera(d: Datos, productoId: Id): { total: number; lineas: Linea[]; faltan: string[] } {
+  const porModelo = carterasPorModelo(d)
+  const lineas: Linea[] = []
+  const faltan: string[] = []
+  for (const g of d.gastos.filter((x) => x.tipo === 'arranque')) {
+    const ids = productosDelGasto(d, g)
+    if (!ids.includes(productoId)) continue
+    if (g.pendiente) {
+      faltan.push(g.descripcion)
+      continue
+    }
+    const monto = montoGasto(g)
+    const pct = g.reparto ? repartoPorcentual(g.reparto, ids) : null
+    const parte = pct ? monto * pct[productoId] : monto / ids.length
+    const carteras = numero(Math.round(porModelo * 100) / 100)
+    const detalle = pct
+      ? `${p(monto)} × ${numero(pct[productoId] * 100)}% = ${p(parte)}`
+      : ids.length > 1
+        ? `${p(monto)} ÷ ${ids.length} modelos = ${p(parte)}`
+        : p(monto)
+    lineas.push({
+      gastoId: g.id,
+      descripcion: g.descripcion,
+      categoriaId: g.categoria_id,
+      tipo: 'arranque',
+      porUnidad: parte / porModelo,
+      explicacion: `${detalle} ÷ ${carteras} carteras de este modelo = ${p(parte / porModelo)}`,
+      estimado: g.estado === 'estimado',
+    })
+  }
+  return { total: lineas.reduce((a, l) => a + l.porUnidad, 0), lineas, faltan }
 }
 
 /** Costeo de un producto en una tanda. */
@@ -276,11 +370,10 @@ export function costearProducto(d: Datos, productoId: Id, tandaId: Id): CosteoPr
   const faltan: string[] = []
   const conMonto = (g: Gasto) => !g.pendiente
 
-  const deLaTanda = d.gastos.filter((g) => g.tanda_id === t.id)
+  const deLaTanda = d.gastos.filter((g) => aplicaATanda(g, t))
   const especificos = deLaTanda.filter((g) => g.tipo === 'especifico')
   const generales = deLaTanda.filter((g) => g.tipo === 'general')
   const recurrentes = d.gastos.filter((g) => g.tipo === 'recurrente')
-  const arranques = d.gastos.filter((g) => g.tipo === 'arranque')
 
   // --- Específicos
   for (const g of especificos) {
@@ -319,25 +412,30 @@ export function costearProducto(d: Datos, productoId: Id, tandaId: Id): CosteoPr
       faltan.push(g.descripcion)
       continue
     }
-    const monto = montoGasto(g, U)
+    if (esPorConsumo(g)) {
+      // lo que va una por cartera (stickers, tarjetas) es parejo
+      lineas.push({
+        gastoId: g.id,
+        descripcion: g.descripcion,
+        categoriaId: g.categoria_id,
+        tipo: 'general',
+        porUnidad: costoPorCartera(g),
+        explicacion: explicarConsumo(g),
+        estimado: g.estado === 'estimado',
+      })
+      continue
+    }
+    const monto = montoGasto(g)
     const base = monto / U
-    // lo que se paga "por unidad producida" (bolsas, cajas) es parejo: una por unidad
-    const unoPorUnidad = g.modo_monto === 'por_unidad_tanda'
-    const pu = unoPorUnidad ? base : base * peso[productoId]
-    const cuenta =
-      g.modo_monto === 'por_unidad_tanda'
-        ? `${pesos(precioPorUnidad(g), true)} por unidad`
-        : `${p(monto)} ÷ ${u(U)} = ${p(base)}`
+    const pu = base * peso[productoId]
+    const cuenta = `${p(monto)} ÷ ${u(U)} = ${p(base)}`
     lineas.push({
       gastoId: g.id,
       descripcion: g.descripcion,
       categoriaId: g.categoria_id,
       tipo: 'general',
       porUnidad: pu,
-      explicacion:
-        peso[productoId] === 1 || unoPorUnidad
-          ? cuenta
-          : `${cuenta} × ${numero(peso[productoId])} (reparto ${metodo}) = ${p(pu)}`,
+      explicacion: peso[productoId] === 1 ? cuenta : `${cuenta} × ${numero(peso[productoId])} (reparto ${metodo}) = ${p(pu)}`,
       estimado: g.estado === 'estimado',
     })
   }
@@ -352,8 +450,7 @@ export function costearProducto(d: Datos, productoId: Id, tandaId: Id): CosteoPr
   const totalMensual = recurrentesConMonto.reduce((a, g) => a + montoMensual(g), 0)
   let recurrentesPendiente = false
   // Con reparto por ventas, cada unidad vendida paga lo mismo del gasto fijo mensual.
-  const pesoRec =
-    d.config.metodo_reparto_generales === 'por_costo_directo' ? (peso[productoId] ?? 1) : 1
+  const pesoRec = d.config.metodo_reparto_generales === 'por_costo_directo' ? (peso[productoId] ?? 1) : 1
   if (participaRecurrentes) {
     for (const g of recurrentes) if (!conMonto(g)) faltan.push(g.descripcion)
     if (recurrentesConMonto.length > 0 && ventas === null) recurrentesPendiente = true
@@ -378,45 +475,27 @@ export function costearProducto(d: Datos, productoId: Id, tandaId: Id): CosteoPr
     }
   }
 
-  // --- Arranque: solo en la tanda que lo absorbe
-  const absorbe = tandaArranque(d, productoId)?.id === t.id
-  if (absorbe) {
-    for (const g of arranques) {
-      const ids = productosDelGasto(d, g)
-      if (!ids.includes(productoId)) continue
-      if (!conMonto(g)) {
-        faltan.push(g.descripcion)
-        continue
-      }
-      const monto = montoGasto(g)
-      const pct = g.reparto ? repartoPorcentual(g.reparto, ids) : null
-      const parte = pct ? monto * pct[productoId] : monto / ids.length
-      const detalleParte = pct
-        ? `${p(monto)} × ${numero(pct[productoId] * 100)}%`
-        : ids.length > 1
-          ? `${p(monto)} ÷ ${ids.length} productos`
-          : p(monto)
+  // --- Muestras y moldes: los pagan las primeras carteras de cada modelo
+  const arr = arranquePorCartera(d, productoId)
+  faltan.push(...arr.faltan)
+  const porModelo = carterasPorModelo(d)
+  const antes = unidadesAntes(d, productoId, t)
+  const enEstaTanda = Math.min(unidades, Math.max(0, porModelo - antes))
+  const fraccion = enEstaTanda / unidades
+  if (fraccion > 0) {
+    for (const l of arr.lineas) {
       lineas.push({
-        gastoId: g.id,
-        descripcion: g.descripcion,
-        categoriaId: g.categoria_id,
-        tipo: 'arranque',
-        porUnidad: parte / unidades,
+        ...l,
+        porUnidad: l.porUnidad * fraccion,
         explicacion:
-          ids.length > 1 || pct
-            ? `${detalleParte} = ${p(parte)} ÷ ${u(unidades)} = ${p(parte / unidades)}`
-            : `${p(monto)} ÷ ${u(unidades)} = ${p(parte / unidades)}`,
-        estimado: g.estado === 'estimado',
+          fraccion < 1
+            ? `${l.explicacion} (solo ${numero(Math.round(enEstaTanda * 100) / 100)} de las ${unidades} de esta tanda todavía la pagan)`
+            : l.explicacion,
       })
     }
-  } else {
-    for (const g of arranques)
-      if (g.pendiente && productosDelGasto(d, g).includes(productoId) && !tandaArranque(d, productoId))
-        faltan.push(g.descripcion)
   }
 
-  const suma = (tipo: TipoLinea) =>
-    lineas.filter((l) => l.tipo === tipo).reduce((a, l) => a + l.porUnidad, 0)
+  const suma = (tipo: TipoLinea) => lineas.filter((l) => l.tipo === tipo).reduce((a, l) => a + l.porUnidad, 0)
   const especifico = suma('especifico')
   const general = suma('general')
   const recurrente = suma('recurrente')
@@ -430,20 +509,17 @@ export function costearProducto(d: Datos, productoId: Id, tandaId: Id): CosteoPr
   }
 
   const n = (tipo: TipoLinea) => lineas.filter((l) => l.tipo === tipo).length
-  const listar = (tipo: TipoLinea, vacio: string) =>
-    n(tipo) === 0
-      ? vacio
-      : lineas
-          .filter((l) => l.tipo === tipo)
-          .map((l) => p(l.porUnidad))
-          .join(' + ')
+  const listar = (tipo: TipoLinea) =>
+    lineas
+      .filter((l) => l.tipo === tipo)
+      .map((l) => p(l.porUnidad))
+      .join(' + ')
   // Con un solo gasto, se muestra su cuenta; con varios, la suma.
   const resumen = (tipo: TipoLinea, frase: string, total: number) => {
     const ls = lineas.filter((l) => l.tipo === tipo)
-    return ls.length === 1
-      ? `${ls[0].descripcion}: ${ls[0].explicacion}`
-      : `${frase}: ${listar(tipo, '')} = ${p(total)}`
+    return ls.length === 1 ? `${ls[0].descripcion}: ${ls[0].explicacion}` : `${frase}: ${listar(tipo)} = ${p(total)}`
   }
+  const carteras = numero(Math.round(porModelo * 100) / 100)
 
   return {
     productoId,
@@ -454,8 +530,10 @@ export function costearProducto(d: Datos, productoId: Id, tandaId: Id): CosteoPr
     recurrente,
     real,
     arranque,
+    arranqueCompleto: arr.total,
     conArranque: real + arranque,
-    absorbeArranque: absorbe,
+    absorbeArranque: fraccion > 0 && arr.lineas.length > 0,
+    recupero: { porModelo, antes, enEstaTanda },
     lineas,
     porCategoria: [...cats.entries()]
       .map(([categoriaId, monto]) => ({ categoriaId, monto }))
@@ -466,27 +544,29 @@ export function costearProducto(d: Datos, productoId: Id, tandaId: Id): CosteoPr
     explicaciones: {
       especifico:
         n('especifico') === 0
-          ? 'Todavía no hay gastos específicos de este producto en esta tanda.'
-          : resumen('especifico', `Suma de ${n('especifico')} gastos asignados a este producto`, especifico),
+          ? 'Todavía no hay materiales, taller ni packaging cargados para este producto.'
+          : resumen('especifico', `Suma de ${n('especifico')} gastos de este producto`, especifico),
       general: !participa
         ? 'Este subproducto no participa de los gastos generales (ver Configuración).'
         : n('general') === 0
           ? 'Todavía no hay gastos generales en esta tanda.'
-          : resumen('general', `Gastos generales repartidos ${metodo} entre las ${u(U)} de la tanda`, general),
+          : resumen('general', `Gastos generales (${metodo})`, general),
       recurrente: !participaRecurrentes
-        ? 'Este subproducto no participa de los gastos recurrentes (ver Configuración).'
+        ? 'Este subproducto no participa de los gastos fijos (ver Configuración).'
         : recurrentesPendiente
           ? `Hay ${p(totalMensual)} por mes de gastos fijos, pero faltan las ventas mensuales estimadas (Configuración). Por ahora cuenta $ 0.`
           : n('recurrente') === 0
-            ? 'Todavía no hay gastos recurrentes cargados con monto.'
-            : `${p(totalMensual)} por mes ÷ ${u(ventas ?? 0)} vendidas por mes = ${p(recurrente)}`,
-      real: `${p(especifico)} específicos + ${p(general)} generales + ${p(recurrente)} recurrentes = ${p(real)}`,
-      arranque: absorbe
-        ? n('arranque') === 0
-          ? 'No hay gastos de arranque cargados para este producto.'
-          : resumen('arranque', `Muestras y moldes repartidos entre las ${u(unidades)} de esta tanda`, arranque)
-        : 'Los gastos de arranque se cargan en otra tanda (la primera de este producto).',
-      conArranque: `${p(real)} costo real + ${p(arranque)} arranque = ${p(real + arranque)}`,
+            ? 'Todavía no hay gastos fijos mensuales cargados con monto.'
+            : resumen('recurrente', `${p(totalMensual)} por mes repartidos entre las ventas del mes`, recurrente),
+      real: `${p(especifico)} + ${p(general)} + ${p(recurrente)} = ${p(real)}`,
+      arranque:
+        arr.lineas.length === 0
+          ? 'No hay muestras ni moldes cargados para este producto.'
+          : fraccion === 0
+            ? `Las muestras y los moldes ya se recuperaron con las primeras ${carteras} carteras de este modelo.`
+            : `Se recuperan en las primeras ${carteras} carteras de este modelo: ${p(arr.total)} cada una.` +
+              (fraccion < 1 ? ` En esta tanda solo las pagan ${numero(Math.round(enEstaTanda * 100) / 100)} de ${unidades}.` : ''),
+      conArranque: `${p(real)} + ${p(arranque)} de muestras y moldes = ${p(real + arranque)}`,
     },
   }
 }

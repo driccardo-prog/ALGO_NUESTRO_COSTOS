@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { AvisoGastos } from '../components/AvisoGastos'
 import { Confirmar } from '../components/Confirmar'
-import { montoGasto } from '../lib/costeo'
+import { esPorConsumo, montoGasto } from '../lib/costeo'
 import { useData } from '../lib/data'
 import { fecha, pesos } from '../lib/format'
-import { TIPOS, textoMonto, unidadesCubiertas } from '../lib/gastos'
+import { TIPOS, textoMonto } from '../lib/gastos'
 import type { Gasto, TipoGasto } from '../lib/types'
 
 const FILTROS = ['tanda', 'producto', 'categoria', 'tipo', 'estado'] as const
@@ -42,10 +43,8 @@ export function Gastos() {
     // Sin fecha primero (para completarla), después de la más nueva a la más vieja
     .sort((a, b) => (b.fecha ?? '9999').localeCompare(a.fecha ?? '9999'))
 
-  const total = visibles.reduce(
-    (a, g) => a + montoGasto(g, unidadesCubiertas(g, tandas.find((t) => t.id === g.tanda_id))),
-    0,
-  )
+  // Total pagado (las compras por mayor cuentan por lo que se pagó, no por lo que se usó)
+  const total = visibles.reduce((a, g) => a + montoGasto(g), 0)
   const hayFiltros = FILTROS.some((f) => filtro[f])
 
   async function confirmarBorrado() {
@@ -67,6 +66,7 @@ export function Gastos() {
         </Link>
       </div>
       {error && <div className="mensaje-error">{error}</div>}
+      <AvisoGastos />
 
       <div className="filtros">
         <label>
@@ -149,7 +149,7 @@ export function Gastos() {
           <tbody>
             {visibles.map((g) => {
               const tanda = tandas.find((t) => t.id === g.tanda_id)
-              const m = textoMonto(g, tanda)
+              const m = textoMonto(g)
               const nombresProductos = g.productos
                 .map((id) => productos.find((p) => p.id === id)?.nombre)
                 .filter(Boolean)
@@ -171,7 +171,8 @@ export function Gastos() {
                   <td className="sin-corte">
                     {g.tipo === 'arranque' || g.tipo === 'recurrente'
                       ? '—'
-                      : (tanda?.nombre ?? <span className="suave">sin tanda</span>)}
+                      : (tanda?.nombre ??
+                        (esPorConsumo(g) ? 'todas' : <span className="suave">sin tanda</span>))}
                   </td>
                   <td className="num">
                     {m.principal}
@@ -220,8 +221,8 @@ export function Gastos() {
         </table>
       </div>
       <p className="suave chico" style={{ marginTop: 12 }}>
-        El total no incluye los gastos que todavía no tienen monto, ni las cajas y bolsas que se
-        cobran por unidad mientras no tengan tanda.
+        El total es lo que pagaste (las compras por mayor cuentan completas, aunque te sobre
+        stock). No incluye los gastos que todavía no tienen monto.
       </p>
 
       {aBorrar && (

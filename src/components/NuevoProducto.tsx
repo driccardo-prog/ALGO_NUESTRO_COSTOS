@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useData } from '../lib/data'
 import { fichaVacia } from '../lib/seed'
-import { hoyISO } from '../lib/format'
+import { mesActual } from '../lib/format'
 
 function siguienteCodigo(codigos: string[]): string {
   const nums = codigos.map((c) => Number(c.match(/^AN_(\d+)$/)?.[1] ?? 0))
@@ -40,7 +40,7 @@ export function NuevoProducto({ onCerrar }: { onCerrar: () => void }) {
         tipologia: tipologia.trim(),
         es_subproducto: esSub,
         orden: Math.max(0, ...productos.map((x) => x.orden)) + 1,
-        ficha: { ...fichaVacia(), fecha: hoyISO() },
+        ficha: { ...fichaVacia(), fecha: mesActual() },
       })
       navigate(`/productos/${p.id}?pestana=ficha&editar=1`)
     } catch (err) {

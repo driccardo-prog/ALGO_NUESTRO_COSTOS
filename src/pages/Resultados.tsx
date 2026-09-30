@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AvisoSinTanda } from '../components/AvisoSinTanda'
+import { AvisoGastos } from '../components/AvisoGastos'
 import { Info } from '../components/Info'
 import { ResumenTanda } from '../components/ResumenTanda'
 import { analizar, type Filtros, type Parte, type TipoRecomendacion } from '../lib/analisis'
 import { montoGasto } from '../lib/costeo'
 import { useData } from '../lib/data'
-import { fecha, leerNumero, pct, pesos } from '../lib/format'
+import { fecha, leerNumero, numero, pct, pesos } from '../lib/format'
 import { comisionAplicada, desglosar } from '../lib/precios'
 import type { Gasto } from '../lib/types'
 
@@ -43,7 +43,7 @@ export function Resultados() {
   const nombreSolo = unSolo ? productos.find((p) => p.id === filtros.productoId)?.nombre : null
   const hayPrecios = a.filas.some((x) => x.precio)
   const variasTandas = new Set(a.filas.map((x) => x.tanda.id)).size > 1
-  const baseTexto = filtros.base === 'arranque' ? 'costo con arranque' : 'costo real'
+  const baseTexto = filtros.base === 'arranque' ? 'costo con muestras y moldes' : 'costo por cartera'
 
   return (
     <>
@@ -82,7 +82,7 @@ export function Resultados() {
         <label>
           Costo
           <select value={filtros.base} onChange={(e) => cambiar('base', e.target.value === (config.precio_con_arranque ? 'arranque' : 'real') ? '' : e.target.value)}>
-            <option value="real">Costo real</option>
+            <option value="real">Costo por cartera</option>
             <option value="arranque">Con muestras y moldes</option>
           </select>
         </label>
@@ -101,7 +101,7 @@ export function Resultados() {
         </label>
       </div>
 
-      <AvisoSinTanda />
+      <AvisoGastos />
 
       {a.filas.length === 0 ? (
         <div className="tarjeta">
@@ -151,14 +151,14 @@ export function Resultados() {
               valor={pesos(a.inversion.total)}
               detalle={
                 a.inversion.enPrecio
-                  ? `incluida en el precio de ${a.inversion.enPrecio.tanda}`
+                  ? `en el precio de las primeras ${a.inversion.enPrecio.carteras} carteras`
                   : a.inversion.unidadesParaRecuperar
                     ? `se recupera con ${a.inversion.unidadesParaRecuperar} ventas`
                     : 'muestras y moldes'
               }
               info={
                 a.inversion.enPrecio
-                  ? `Se recupera al vender las ${a.inversion.enPrecio.unidades} carteras de ${a.inversion.enPrecio.tanda}`
+                  ? `Se recupera con las primeras ${numero(a.inversion.enPrecio.porModelo)} carteras de cada modelo`
                   : a.inversion.unidadesParaRecuperar
                   ? `${pesos(a.inversion.total)} ÷ ${pesos(a.totales.gananciaPromedio)} de ganancia promedio por cartera`
                   : 'Suma de los gastos de arranque con monto'
@@ -254,8 +254,8 @@ export function Resultados() {
                     <th>Cartera</th>
                     {variasTandas && <th>Tanda</th>}
                     <th className="num">Unidades</th>
-                    <th className="num">Costo real</th>
-                    <th className="num">Con arranque</th>
+                    <th className="num">Costo por cartera</th>
+                    <th className="num">Con muestras</th>
                     <th className="num">Precio</th>
                     <th className="num">Te queda c/u</th>
                     <th className="num">Margen</th>
@@ -482,7 +482,7 @@ function Inversion({
   gastos: Gasto[]
   gananciaPromedio: number
   costoPromedio: number
-  enPrecio: { tanda: string; unidades: number } | null
+  enPrecio: { carteras: number; porModelo: number } | null
 }) {
   const { config } = useData()
   // Precio de prueba (no se guarda): para ver cuántas ventas hacen falta con otro precio.
@@ -524,12 +524,12 @@ function Inversion({
           {enPrecio ? (
             <>
               <div className="kpi-valor" style={{ margin: '8px 0' }}>
-                {enPrecio.unidades} carteras
+                {enPrecio.carteras} carteras
               </div>
               <p className="suave chico">
-                Las muestras y los moldes ya están dentro del precio de {enPrecio.tanda}: se
-                recuperan cuando vendas todas las carteras de esa tanda. Si preferís no cobrarlos
-                en el precio, cambialo en Configuración.
+                Las muestras y los moldes están dentro del precio de las primeras{' '}
+                {numero(enPrecio.porModelo)} carteras de cada modelo: con esas ventas se recuperan.
+                Lo cambiás en Configuración.
               </p>
             </>
           ) : (

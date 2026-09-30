@@ -2,6 +2,7 @@
 // y arma porcentajes, comparativas y recomendaciones.
 
 import {
+  carterasPorModelo,
   costearProducto,
   montoGasto,
   tandaReferencia,
@@ -10,7 +11,7 @@ import {
   type Datos,
   type TipoLinea,
 } from './costeo'
-import { pct, pesos } from './format'
+import { numero, pct, pesos } from './format'
 import { comisionAplicada, comisionDe, MEDIOS, precioFinal, type Comision, type DesglosePrecio } from './precios'
 import type { Gasto, Id, MedioPago, Producto, Tanda } from './types'
 
@@ -75,16 +76,17 @@ export interface Analisis {
     pendientes: number
     unidadesParaRecuperar: number | null
     /** si las muestras y moldes ya están dentro del precio: la tanda que los paga y sus unidades */
-    enPrecio: { tanda: string; unidades: number } | null
+    /** si las muestras y moldes están dentro del precio: en cuántas carteras se recuperan */
+    enPrecio: { carteras: number; porModelo: number } | null
   }
   recomendaciones: Recomendacion[]
 }
 
 const NOMBRE_TIPO: Record<TipoLinea, string> = {
-  especifico: 'Específicos del producto',
-  general: 'Generales de la tanda',
-  recurrente: 'Fijos mensuales',
-  arranque: 'Arranque (muestras, moldes)',
+  especifico: 'Materiales, taller y packaging',
+  general: 'Gastos de la tanda',
+  recurrente: 'Gastos fijos del mes',
+  arranque: 'Muestras y moldes',
 }
 
 /** Productos y tandas que entran en el análisis según los filtros. */
@@ -171,14 +173,10 @@ export function analizar(d: Datos, f: Filtros): Analisis {
   const inversionTotal = arranques.reduce((a, g) => a + montoGasto(g), 0)
   const gananciaPromedio = unidades > 0 ? ganancia / unidades : 0
   const hayPrecios = filas.some((x) => x.precio)
-  // Con "costo con arranque", el precio de la tanda de lanzamiento ya incluye muestras y moldes.
-  const lanzamiento = filas.filter((x) => x.costeo.absorbeArranque && x.costeo.arranque > 0)
+  // Con "muestras y moldes" en el precio, se recuperan en las primeras carteras de cada modelo.
   const enPrecio =
-    f.base === 'arranque' && hayPrecios && lanzamiento.length > 0
-      ? {
-          tanda: [...new Set(lanzamiento.map((x) => x.tanda.nombre))].join(', '),
-          unidades: lanzamiento.reduce((s, x) => s + x.unidades, 0),
-        }
+    f.base === 'arranque' && hayPrecios && inversionTotal > 0
+      ? { carteras: d.config.arranque_recuperar_en, porModelo: carterasPorModelo(d) }
       : null
 
   const a: Analisis = {
@@ -314,7 +312,7 @@ function recomendar(d: Datos, f: Filtros, a: Analisis): Recomendacion[] {
     r.push({
       tipo: 'alerta',
       titulo: `Faltan ${a.faltan.length} ${a.faltan.length === 1 ? 'gasto' : 'gastos'} por cotizar`,
-      texto: `${a.faltan.join(', ')}. Mientras no tengan monto, el costo real va a ser más alto que el que ves.`,
+      texto: `${a.faltan.join(', ')}. Mientras no tengan monto, el costo va a ser más alto que el que ves.`,
     })
   }
 
@@ -345,8 +343,8 @@ function recomendar(d: Datos, f: Filtros, a: Analisis): Recomendacion[] {
   if (a.inversion.total > 0 && a.inversion.enPrecio) {
     r.push({
       tipo: 'dato',
-      titulo: `Las muestras y los moldes ya están en el precio de ${a.inversion.enPrecio.tanda}`,
-      texto: `Los ${pesos(a.inversion.total)} que invertiste se recuperan cuando vendas las ${a.inversion.enPrecio.unidades} carteras de esa tanda. En las tandas siguientes el precio sale del costo real y puede bajar.`,
+      titulo: `Las muestras y los moldes están en el precio de las primeras ${a.inversion.enPrecio.carteras} carteras`,
+      texto: `Los ${pesos(a.inversion.total)} que invertiste se recuperan con las primeras ${numero(a.inversion.enPrecio.porModelo)} carteras de cada modelo. Después el precio sale del costo por cartera y puede bajar. Lo cambiás en Configuración.`,
     })
   } else if (a.inversion.total > 0 && a.inversion.unidadesParaRecuperar) {
     r.push({

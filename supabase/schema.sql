@@ -58,13 +58,16 @@ create table if not exists public.gastos (
   estado text not null default 'real' check (estado in ('real', 'estimado')),
   -- pendiente = todavía no se sabe el monto ("falta cargar")
   pendiente boolean not null default false,
-  -- total: monto | unitario: precio_unitario × cantidad |
-  -- por_unidad_tanda: precio_unitario × unidades de la tanda
+  -- total: el monto se reparte entre las carteras de la tanda |
+  -- por_rendimiento: compra por mayor, monto ÷ rinde × uso por cartera |
+  -- unitario / por_unidad_tanda: formas viejas (ver actualizacion_02.sql)
   modo_monto text not null default 'total'
-    check (modo_monto in ('total', 'unitario', 'por_unidad_tanda')),
+    check (modo_monto in ('total', 'por_rendimiento', 'unitario', 'por_unidad_tanda')),
   monto numeric,
   precio_unitario numeric,
   cantidad numeric,
+  rinde numeric,
+  uso numeric,
   -- si es true, los montos se cargaron sin IVA y la app suma 21%
   sin_iva boolean not null default false,
   tanda_id uuid references public.tandas (id) on delete set null,

@@ -27,7 +27,7 @@ export function configInicial(): ConfigDatos {
   return {
     seed_version: SEED_VERSION,
     metodo_reparto_generales: 'por_unidad',
-    arranque_tanda: {},
+    arranque_recuperar_en: 30,
     ventas_mensuales_modo: 'total',
     ventas_mensuales_total: null,
     ventas_mensuales_por_producto: {},
@@ -197,6 +197,8 @@ export function datosIniciales() {
     monto: null,
     precio_unitario: null,
     cantidad: null,
+    rinde: null,
+    uso: null,
     sin_iva: false,
     tanda_id: null,
     productos: [],
@@ -215,7 +217,7 @@ export function datosIniciales() {
       tipo: 'arranque',
       monto: 100000,
       productos: todos,
-      notas: 'Completar la fecha.',
+      notas: 'Completar el mes.',
     }),
     base({
       descripcion: '2 chapas de cuero para muestras',
@@ -264,8 +266,11 @@ export function datosIniciales() {
       categoria_id: cat('Packaging'),
       tipo: 'especifico',
       estado: 'estimado',
-      modo_monto: 'por_unidad_tanda',
-      precio_unitario: sinIva,
+      // compra por mayor: una por cartera
+      modo_monto: 'por_rendimiento',
+      monto: sinIva,
+      rinde: 1,
+      uso: 1,
       sin_iva: true,
       productos: productosIds,
       notas:
