@@ -117,6 +117,8 @@ export interface ConfigDatos {
   subproductos_en_generales: boolean
   // en la tanda que absorbe el arranque, el precio sugerido incluye muestras y moldes
   precio_con_arranque: boolean
+  // grupos de gastos que Loli marcó como "no son repetidos" (ids ordenados, separados por |)
+  repetidos_ignorados: string[]
 }
 
 export interface Configuracion {

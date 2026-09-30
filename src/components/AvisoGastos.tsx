@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { tandasOrdenadas } from '../lib/costeo'
 import { useData } from '../lib/data'
-import { revisarGastos } from '../lib/revision'
+import { claveRepetidos, revisarGastos } from '../lib/revision'
 
 /**
  * Avisa de la plata que se pierde o se duplica: gastos sin tanda (con un botón
@@ -10,7 +10,7 @@ import { revisarGastos } from '../lib/revision'
  */
 export function AvisoGastos() {
   const datos = useData()
-  const { tandas, editar } = datos
+  const { tandas, editar, config, guardarConfig } = datos
   const { sinTanda, noSuman, repetidos } = revisarGastos(datos)
   const ordenadas = tandasOrdenadas(tandas)
   const [tandaId, setTandaId] = useState(ordenadas[ordenadas.length - 1]?.id ?? '')
@@ -84,8 +84,10 @@ export function AvisoGastos() {
 
       {repetidos.length > 0 && (
         <div className="pendiente aviso-gastos">
+          {error && sinTanda.length === 0 && <p className="error-campo">{error}</p>}
           <strong>¿Estos gastos están cargados dos veces?</strong> Si es el mismo (por ejemplo, el
-          presupuesto y la factura), se están sumando los dos: dejá uno solo.
+          presupuesto y la factura), se están sumando los dos: dejá uno solo. Si son cosas
+          distintas, tocá "No, son distintos".
           <ul>
             {repetidos.map((grupo) => (
               <li key={grupo.map((g) => g.id).join('-')}>
@@ -95,7 +97,18 @@ export function AvisoGastos() {
                     <Link to={`/gastos/${g.id}`}>{g.descripcion}</Link>
                     {g.estado === 'estimado' ? ' (estimado)' : ' (real)'}
                   </span>
-                ))}
+                ))}{' '}
+                <button
+                  type="button"
+                  className="btn btn-texto chico"
+                  onClick={() =>
+                    guardarConfig({
+                      repetidos_ignorados: [...(config.repetidos_ignorados ?? []), claveRepetidos(grupo)],
+                    }).catch((err: Error) => setError(err.message))
+                  }
+                >
+                  No, son distintos
+                </button>
               </li>
             ))}
           </ul>
